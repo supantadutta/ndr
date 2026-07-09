@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Astra.Shared</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Primitives.fs" />
+    <Compile Include="Mitre.fs" />
+    <Compile Include="Events.fs" />
+    <Compile Include="Sensors.fs" />
+    <Compile Include="Entities.fs" />
+    <Compile Include="Detections.fs" />
+    <Compile Include="Scoring.fs" />
+    <Compile Include="Incidents.fs" />
+    <Compile Include="Api.fs" />
+  </ItemGroup>
+</Project>

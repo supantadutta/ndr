@@ -1,0 +1,30 @@
+## .NET
+bin/
+obj/
+*.user
+.vs/
+.fake/
+.ionide/
+
+## Fable / JS
+node_modules/
+dist/
+.fable/
+*.fs.js
+*.fs.js.map
+fable_modules/
+
+## Environment / secrets
+.env
+*.local.json
+!src/**/paket.local.json
+
+## OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+## Logs and data
+*.log
+data/
+pgdata/

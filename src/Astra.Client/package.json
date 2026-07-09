@@ -1,0 +1,20 @@
+{
+  "name": "astra-ndr-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean": "dotnet fable clean --yes",
+    "build:fable": "dotnet fable --run vite build",
+    "start": "dotnet fable watch --run vite",
+    "vite:dev": "vite",
+    "vite:build": "vite build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
