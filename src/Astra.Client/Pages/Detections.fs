@@ -60,6 +60,34 @@ let Detections () =
                                     ]
                                     Html.div [ prop.style [ style.fontSize 13; style.color Theme.textPrimary ]; prop.text d.Summary ]
 
+                                    // ---- triage actions ----
+                                    Html.div [
+                                        prop.children [
+                                            Html.div [ prop.style [ style.fontSize 11; style.fontWeight 600; style.color Theme.textMuted; style.textTransform.uppercase; style.marginBottom 6 ]; prop.text (sprintf "Triage — current: %s" (d.TriageState.Replace("_", " "))) ]
+                                            Html.div [
+                                                prop.style [ style.display.flex; style.gap 8; style.flexWrap.wrap ]
+                                                prop.children [
+                                                    let act (label: string) (action: string) (color: string) =
+                                                        Html.button [
+                                                            prop.onClick (fun _ ->
+                                                                Api.triageDetection d.DetectionId action "analyst" None
+                                                                |> Promise.map (fun r -> match r with Ok x -> setSelected (Some (Ok x)); refresh () | Error _ -> ())
+                                                                |> Promise.start)
+                                                            prop.style [
+                                                                style.padding (5, 12); style.borderRadius 6; style.fontSize 12; style.cursor.pointer
+                                                                style.border (1, borderStyle.solid, color); style.color color; style.backgroundColor "transparent"
+                                                            ]
+                                                            prop.text label
+                                                        ]
+                                                    act "Close benign" "close_benign" "#3ddc97"
+                                                    act "Mark expected" "expected" "#5bc0be"
+                                                    act "Escalate" "escalate" "#ff8c42"
+                                                    act "Reopen" "reopen" "#6c7a94"
+                                                ]
+                                            ]
+                                        ]
+                                    ]
+
                                     Html.div [
                                         prop.children [
                                             Html.div [ prop.style [ style.fontSize 11; style.fontWeight 600; style.color Theme.textMuted; style.textTransform.uppercase; style.marginBottom 6 ]; prop.text "Why suspicious" ]

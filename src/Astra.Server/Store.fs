@@ -19,6 +19,12 @@ type AstraStore() =
     let detections = ConcurrentDictionary<DetectionId, Detection>()
     let incidents = ConcurrentDictionary<IncidentId, Incident>()
     let scoreBreakdowns = ConcurrentDictionary<EntityId, ScoreBreakdown>()
+    // Phase 3: tunable rule config, triage filters/allowlists, audit, baselines.
+    let ruleConfig = ConcurrentDictionary<RuleId, DetectionRuleDef>()
+    let triageFilters = ConcurrentDictionary<Guid, TriageFilter>()
+    let allowlists = ConcurrentDictionary<Guid, AllowlistEntry>()
+    let auditLog = ConcurrentQueue<AuditEntry>()
+    let baselineState = ConcurrentDictionary<string, Baselines.EwmaState>()   // "scope|metric" -> state
     let maxEventsInMemory = 200_000
 
     // ------------------------------------------------------------------ sensors
@@ -100,17 +106,68 @@ type AstraStore() =
     member _.TryGetDetection(id) = match detections.TryGetValue id with | true, d -> Some d | _ -> None
     member _.Detections = detections.Values |> Seq.toList
 
-    /// Deduplication key: one open detection per (rule, affected entity).
+    /// Deduplication: don't re-raise a (rule, entity) finding that is already
+    /// open OR that an analyst has already dismissed/handled. Without the second
+    /// clause, closing a detection as benign would let the next analysis cycle
+    /// immediately re-raise it. A `reopen` sets status=open + Untriaged, which is
+    /// covered by the open check so reopened findings behave normally.
     member _.HasOpenDetection(ruleId: RuleId, entity: EntityId) =
         detections.Values
-        |> Seq.exists (fun d -> d.RuleId = ruleId && d.AffectedEntity = entity && d.Status = "open")
+        |> Seq.exists (fun d ->
+            d.RuleId = ruleId && d.AffectedEntity = entity
+            && (d.Status = "open"
+                || (match d.TriageState with
+                    | TriageState.ClosedBenign | TriageState.ClosedRemediated | TriageState.ExpectedBehavior -> true
+                    | _ -> false)))
 
     // ---------------------------------------------------------------- incidents
     member _.AddIncident(i: Incident) = incidents.[i.IncidentId] <- i
     member _.Incidents = incidents.Values |> Seq.toList
     member _.TryGetIncident(id) = match incidents.TryGetValue id with | true, i -> Some i | _ -> None
 
+    /// Replace a detection (e.g. after a triage state change).
+    member _.UpdateDetection(d: Detection) = detections.[d.DetectionId] <- d
+
     // ------------------------------------------------------------------ scoring
     member _.SetScoreBreakdown(b: ScoreBreakdown) = scoreBreakdowns.[b.EntityId] <- b
     member _.TryGetScoreBreakdown(id) =
         match scoreBreakdowns.TryGetValue id with | true, b -> Some b | _ -> None
+
+    // -------------------------------------------------------------- rule config
+    /// Tunable rule config overlays the engine's built-in defaults. Seeded from
+    /// the engine at startup, then mutated by detection-engineering actions.
+    member _.SeedRuleConfig(defs: DetectionRuleDef list) =
+        for d in defs do ruleConfig.TryAdd(d.RuleId, d) |> ignore
+    member _.RuleConfigs = ruleConfig.Values |> Seq.toList
+    member _.TryGetRuleConfig(id) = match ruleConfig.TryGetValue id with | true, d -> Some d | _ -> None
+    member _.UpsertRuleConfig(d: DetectionRuleDef) = ruleConfig.[d.RuleId] <- d
+    member _.IsRuleEnabled(id: RuleId) =
+        match ruleConfig.TryGetValue id with | true, d -> d.Enabled | _ -> true
+    member _.RuleThreshold(id: RuleId, key: string, fallback: float) =
+        match ruleConfig.TryGetValue id with
+        | true, d -> d.Thresholds |> Map.tryFind key |> Option.defaultValue fallback
+        | _ -> fallback
+
+    // ------------------------------------------------------------ triage filters
+    member _.UpsertTriageFilter(f: TriageFilter) = triageFilters.[f.FilterId] <- f
+    member _.TriageFilters = triageFilters.Values |> Seq.toList
+    member _.RemoveTriageFilter(id: Guid) = triageFilters.TryRemove id |> ignore
+    /// The first enabled filter matching a detection's tuning fields, if any.
+    member _.MatchingFilter(tuningFields: Map<string, string>) =
+        triageFilters.Values |> Seq.tryFind (fun f -> TriageFilter.matches f tuningFields)
+
+    // ---------------------------------------------------------------- allowlists
+    member _.UpsertAllowlist(a: AllowlistEntry) = allowlists.[a.AllowlistId] <- a
+    member _.Allowlists = allowlists.Values |> Seq.toList
+    member _.RemoveAllowlist(id: Guid) = allowlists.TryRemove id |> ignore
+
+    // -------------------------------------------------------------------- audit
+    member _.Audit(entry: AuditEntry) = auditLog.Enqueue entry
+    member _.AuditLog = auditLog |> Seq.toList |> List.sortByDescending (fun e -> e.At)
+
+    // ----------------------------------------------------------------- baselines
+    member _.GetBaseline(key: string, alpha: float) =
+        match baselineState.TryGetValue key with
+        | true, s -> s
+        | _ -> Baselines.Ewma.create alpha
+    member _.SetBaseline(key: string, s: Baselines.EwmaState) = baselineState.[key] <- s

@@ -171,6 +171,37 @@ module private Decode =
               SuricataRunning = get.Required.Field "suricataRunning" Decode.bool
               Errors = get.Required.Field "errors" (Decode.list Decode.string) })
 
+    let ruleThreshold : Decoder<RuleThreshold> =
+        Decode.object (fun get ->
+            { Key = get.Required.Field "key" Decode.string
+              Value = get.Required.Field "value" Decode.float })
+
+    let detectionRule : Decoder<DetectionRule> =
+        Decode.object (fun get ->
+            { RuleId = get.Required.Field "ruleId" Decode.string
+              Name = get.Required.Field "name" Decode.string
+              Description = get.Required.Field "description" Decode.string
+              EngineKind = get.Required.Field "engineKind" Decode.string
+              Category = get.Required.Field "category" Decode.string
+              Tactic = get.Required.Field "tactic" Decode.string
+              TechniqueId = get.Required.Field "techniqueId" Decode.string
+              TechniqueName = get.Required.Field "techniqueName" Decode.string
+              DefaultSeverity = get.Required.Field "defaultSeverity" Decode.string
+              DefaultConfidence = get.Required.Field "defaultConfidence" Decode.int
+              Enabled = get.Required.Field "enabled" Decode.bool
+              Thresholds = get.Required.Field "thresholds" (Decode.list ruleThreshold)
+              Version = get.Required.Field "version" Decode.int
+              OpenDetections = get.Required.Field "openDetections" Decode.int })
+
+    let auditEntry : Decoder<AuditEntry> =
+        Decode.object (fun get ->
+            { At = get.Required.Field "at" Decode.string
+              Actor = get.Required.Field "actor" Decode.string
+              ActorKind = get.Required.Field "actorKind" Decode.string
+              Action = get.Required.Field "action" Decode.string
+              SubjectKind = get.Required.Field "subjectKind" Decode.string
+              SubjectId = get.Required.Field "subjectId" Decode.string })
+
     let assistantStatement : Decoder<AssistantStatement> =
         Decode.object (fun get ->
             { Text = get.Required.Field "text" Decode.string
@@ -225,3 +256,39 @@ let getDetectionDetail (id: string) = getJson (sprintf "/api/detections/%s" id) 
 let getIncidents () = getJson "/api/incidents" (Decode.list Decode.incidentItem)
 let getSensors () = getJson "/api/sensors/health" (Decode.list Decode.sensorHealth)
 let getAssistantEntity (id: string) = getJson (sprintf "/api/assistant/entity/%s" id) Decode.assistantSummary
+let getRules () = getJson "/api/rules" (Decode.list Decode.detectionRule)
+let getAudit () = getJson "/api/audit" (Decode.list Decode.auditEntry)
+
+/// POST a JSON body (already-serialized string) and decode the response.
+let private postJson<'T> (path: string) (body: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
+    promise {
+        try
+            let! response =
+                fetch (url path)
+                    [ RequestProperties.Method HttpMethod.POST
+                      requestHeaders [ ContentType "application/json" ]
+                      RequestProperties.Body (unbox body) ]
+            let! text = response.text ()
+            if response.Ok then return Decode.fromString decoder text
+            else return Error (sprintf "HTTP %d: %s" response.Status text)
+        with ex -> return Error ex.Message
+    }
+
+let triageDetection (id: string) (action: string) (actor: string) (note: string option) =
+    let body =
+        Encode.object
+            [ "action", Encode.string action
+              "actor", Encode.string actor
+              "owner", (match note with _ -> Encode.nil)
+              "note", (match note with Some n -> Encode.string n | None -> Encode.nil) ]
+        |> Encode.toString 0
+    postJson (sprintf "/api/detections/%s/triage" id) body Decode.detectionDetail
+
+let updateRule (id: string) (enabled: bool option) (thresholds: (string * float) list) =
+    let body =
+        Encode.object
+            [ "enabled", (match enabled with Some b -> Encode.bool b | None -> Encode.nil)
+              "thresholds", Encode.list (thresholds |> List.map (fun (k, v) ->
+                                Encode.object [ "key", Encode.string k; "value", Encode.float v ])) ]
+        |> Encode.toString 0
+    postJson (sprintf "/api/rules/%s" id) body Decode.detectionRule

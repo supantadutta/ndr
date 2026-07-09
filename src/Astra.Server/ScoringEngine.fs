@@ -11,9 +11,15 @@ let private clamp v = max 0 (min 100 (int (Math.Round(v: float))))
 
 /// Recompute an entity's scores from its open detections + context.
 let computeBreakdown (store: AstraStore) (now: DateTimeOffset) (entity: EntityProfile) : ScoreBreakdown =
+    // Triage-suppressed detections keep visibility but stop contributing to score.
+    let isSuppressed (d: Detection) =
+        match d.TriageState with
+        | TriageState.ClosedBenign | TriageState.ClosedRemediated | TriageState.ExpectedBehavior -> true
+        | _ -> false
+
     let detections =
         store.Detections
-        |> List.filter (fun d -> d.AffectedEntity = entity.EntityId && d.Status = "open")
+        |> List.filter (fun d -> d.AffectedEntity = entity.EntityId && d.Status = "open" && not (isSuppressed d))
 
     let mutable factors : ScoreFactor list = []
     let add kind label contribution explanation related =

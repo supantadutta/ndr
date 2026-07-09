@@ -75,6 +75,138 @@ let sensorsHealthHandler (store: AstraStore) : HttpHandler =
         let items = store.Sensors |> List.map (Astra.Server.Mappers.sensorHealth store)
         json items next ctx
 
+// ---------------------------------------------------- detection engineering
+let rulesHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        let items = store.RuleConfigs |> List.sortBy (fun d -> let (RuleId r) = d.RuleId in r) |> List.map (Astra.Server.Mappers.ruleDto store)
+        json items next ctx
+
+let updateRuleHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        task {
+            match store.TryGetRuleConfig(RuleId id) with
+            | None -> return! (setStatusCode 404 >=> json { Error = "not_found"; Detail = "rule not found" }) next ctx
+            | Some def ->
+                try
+                    let! body = ctx.ReadBodyFromRequestAsync()
+                    let req = Astra.Server.Json.deserialize<RuleUpdateRequest> body
+                    let newThresholds =
+                        req.Thresholds |> List.fold (fun (m: Map<string, float>) t -> Map.add t.Key t.Value m) def.Thresholds
+                    let updated =
+                        { def with
+                            Enabled = defaultArg req.Enabled def.Enabled
+                            Thresholds = newThresholds
+                            Version = def.Version + 1
+                            UpdatedAt = DateTimeOffset.UtcNow }
+                    store.UpsertRuleConfig updated
+                    store.Audit
+                        { At = DateTimeOffset.UtcNow; Actor = "analyst"; ActorKind = "user"
+                          Action = (if req.Enabled = Some false then "rule.disable" elif req.Enabled = Some true then "rule.enable" else "rule.tune")
+                          SubjectKind = "rule"; SubjectId = id; Details = Map.empty }
+                    return! json (Astra.Server.Mappers.ruleDto store updated) next ctx
+                with ex -> return! badRequest (sprintf "invalid rule update: %s" ex.Message) next ctx
+        }
+
+// ------------------------------------------------------------------- triage
+let private triageStateOf = function
+    | "close_benign" -> Some (TriageState.ClosedBenign, "triage.close_benign")
+    | "close_remediated" -> Some (TriageState.ClosedRemediated, "triage.close_remediated")
+    | "expected" -> Some (TriageState.ExpectedBehavior, "triage.mark_expected")
+    | "escalate" -> Some (TriageState.Escalated, "triage.escalate")
+    | "in_progress" -> Some (TriageState.InProgress, "triage.in_progress")
+    | "reopen" -> Some (TriageState.Untriaged, "triage.reopen")
+    | _ -> None
+
+let triageDetectionHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        task {
+            match Guid.TryParse id with
+            | false, _ -> return! badRequest "invalid detection id" next ctx
+            | true, g ->
+                match store.TryGetDetection(DetectionId g) with
+                | None -> return! (setStatusCode 404 >=> json { Error = "not_found"; Detail = "detection not found" }) next ctx
+                | Some d ->
+                    try
+                        let! body = ctx.ReadBodyFromRequestAsync()
+                        let req = Astra.Server.Json.deserialize<TriageRequest> body
+                        match triageStateOf req.Action with
+                        | None -> return! badRequest (sprintf "unknown triage action: %s" req.Action) next ctx
+                        | Some (state, auditAction) ->
+                            let closed = (state = TriageState.ClosedBenign || state = TriageState.ClosedRemediated)
+                            let updated =
+                                { d with
+                                    TriageState = state
+                                    Status = (if closed then "closed" else "open")
+                                    AssignedOwner = (match req.Owner with Some o -> Some o | None -> d.AssignedOwner)
+                                    UpdatedAt = DateTimeOffset.UtcNow }
+                            store.UpdateDetection updated
+                            store.Audit
+                                { At = DateTimeOffset.UtcNow; Actor = req.Actor; ActorKind = "user"
+                                  Action = auditAction; SubjectKind = "detection"; SubjectId = id
+                                  Details = (match req.Note with Some n -> Map.ofList [ "note", n ] | None -> Map.empty) }
+                            // rescore the affected entity so suppression takes effect immediately
+                            match store.TryGetEntity d.AffectedEntity with
+                            | Some e -> store.SetScoreBreakdown(Astra.Server.ScoringEngine.computeBreakdown store DateTimeOffset.UtcNow e)
+                                        store.UpsertEntity { e with Scores = (store.TryGetScoreBreakdown e.EntityId |> Option.map (fun b -> b.Scores) |> Option.defaultValue e.Scores) }
+                            | None -> ()
+                            return! json (Astra.Server.Mappers.detectionDetail store updated) next ctx
+                    with ex -> return! badRequest (sprintf "invalid triage request: %s" ex.Message) next ctx
+        }
+
+// ------------------------------------------------------- filters & allowlists
+let triageFiltersHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.TriageFilters |> List.map Astra.Server.Mappers.triageFilterDto) next ctx
+
+let createTriageFilterHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<CreateTriageFilterRequest> body
+                let action =
+                    match req.Action with
+                    | "hide" -> TriageAction.Hide | "tag" -> TriageAction.Tag | _ -> TriageAction.SuppressScoring
+                let filter =
+                    { FilterId = Guid.NewGuid(); Name = req.Name; Description = req.Description
+                      Conditions = req.Conditions; Action = action; CreatedBy = req.Actor
+                      CreatedAt = DateTimeOffset.UtcNow; Enabled = true }
+                store.UpsertTriageFilter filter
+                store.Audit
+                    { At = DateTimeOffset.UtcNow; Actor = req.Actor; ActorKind = "user"
+                      Action = "filter.create"; SubjectKind = "filter"; SubjectId = string filter.FilterId; Details = Map.empty }
+                return! json (Astra.Server.Mappers.triageFilterDto filter) next ctx
+            with ex -> return! badRequest (sprintf "invalid filter: %s" ex.Message) next ctx
+        }
+
+let allowlistsHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.Allowlists |> List.map Astra.Server.Mappers.allowlistDto) next ctx
+
+let createAllowlistHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<CreateAllowlistRequest> body
+                let kind =
+                    match req.Kind with
+                    | "ip" -> AllowlistKind.Ip | "cidr" -> AllowlistKind.Cidr | "domain" -> AllowlistKind.Domain
+                    | "account" -> AllowlistKind.Account | "port" -> AllowlistKind.Port
+                    | "protocol" -> AllowlistKind.Protocol | "sensor" -> AllowlistKind.Sensor | k -> AllowlistKind.Other k
+                let entry =
+                    { AllowlistId = Guid.NewGuid(); Name = req.Name; Kind = kind; Value = req.Value
+                      Reason = req.Reason; CreatedBy = req.Actor; CreatedAt = DateTimeOffset.UtcNow
+                      ExpiresAt = None; Enabled = true }
+                store.UpsertAllowlist entry
+                store.Audit
+                    { At = DateTimeOffset.UtcNow; Actor = req.Actor; ActorKind = "user"
+                      Action = "allowlist.create"; SubjectKind = "allowlist"; SubjectId = string entry.AllowlistId; Details = Map.empty }
+                return! json (Astra.Server.Mappers.allowlistDto entry) next ctx
+            with ex -> return! badRequest (sprintf "invalid allowlist: %s" ex.Message) next ctx
+        }
+
+let auditHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.AuditLog |> List.truncate 200 |> List.map Astra.Server.Mappers.auditDto) next ctx
+
 let assistantEntityHandler (store: AstraStore) (provider: Astra.Server.Assistant.IAnalysisProvider) (id: string) : HttpHandler =
     fun next ctx ->
         match Guid.TryParse id with
@@ -169,10 +301,18 @@ let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Se
             routef "/api/detections/%s" (detectionDetailHandler store)
             route Routes.incidents >=> incidentsHandler store
             route Routes.sensorsHealth >=> sensorsHealthHandler store
+            route Routes.rules >=> rulesHandler store
+            route Routes.triageFilters >=> triageFiltersHandler store
+            route Routes.allowlists >=> allowlistsHandler store
+            route Routes.auditLog >=> auditHandler store
         ]
         POST >=> choose [
             route Routes.ingestEvents >=> ingestEventsHandler pipeline token
             route Routes.ingestHeartbeat >=> heartbeatHandler store token
+            routef "/api/detections/%s/triage" (triageDetectionHandler store)
+            routef "/api/rules/%s" (updateRuleHandler store)
+            route Routes.triageFilters >=> createTriageFilterHandler store
+            route Routes.allowlists >=> createAllowlistHandler store
         ]
         setStatusCode 404 >=> json { Error = "not_found"; Detail = "no such route" }
     ]

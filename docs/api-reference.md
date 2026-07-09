@@ -82,6 +82,38 @@ Header `X-Astra-Sensor-Token`. Body `HeartbeatRequest` (sensor id/name/version +
 sample). Records health and **auto-registers** the sensor on first contact. Response
 `{ "acknowledged": true, "configVersion": 1 }`.
 
+## Detection engineering & triage (Phase 3)
+
+### `GET /api/rules`
+Returns `DetectionRuleDto[]` — each rule's metadata, `enabled`, thresholds, version, and
+live open-detection count.
+
+### `POST /api/rules/{ruleId}`
+Body `RuleUpdateRequest` `{ enabled?: bool, thresholds: [{key,value}] }`. Enables/disables
+and/or tunes thresholds; bumps the version and writes an audit entry. Takes effect on the
+next analysis cycle.
+
+### `POST /api/detections/{id}/triage`
+Body `TriageRequest` `{ action, owner?, note?, actor }` where `action` ∈
+`close_benign | close_remediated | expected | escalate | in_progress | reopen`. Updates
+the detection, rescoring the affected entity, and audits the action. Suppressed
+detections stop contributing to score and are not re-raised.
+
+### `GET/POST /api/triage-filters`
+List or create `TriageFilter`s (match a detection's tuning fields → suppress scoring /
+hide / tag). New detections matching an enabled filter are auto-suppressed.
+
+### `GET/POST /api/allowlists`
+List or create `AllowlistEntry`s (ip/cidr/domain/account/port/protocol/sensor).
+
+### `GET /api/audit`
+Returns the most recent `AuditEntryDto[]` — actor, action, subject — for every triage,
+tuning, and governance operation.
+
+### `GET /api/assistant/entity/{id}`
+Read-only, evidence-bound AI investigation summary (fact / inference / recommendation with
+citations). See `ai-assistant-security.md`.
+
 ## Roadmap endpoints
 
 The following API groups are defined in the product architecture and delivered in later

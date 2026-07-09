@@ -6,6 +6,7 @@
     <Compile Include="Config.fs" />
     <Compile Include="Json.fs" />
     <Compile Include="Classification.fs" />
+    <Compile Include="Baselines.fs" />
     <Compile Include="Store.fs" />
     <Compile Include="DetectionEngine.fs" />
     <Compile Include="ScoringEngine.fs" />

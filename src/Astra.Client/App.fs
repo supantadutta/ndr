@@ -69,10 +69,7 @@ let private content (route: Route) =
         Pages.Placeholder.Placeholder "Threat Hunting" "Phase 4"
             [ "Metadata query builder over normalized events"; "Saved searches and scheduled hunts"
               "DNS / TLS / SMB / RDP analytics"; "Convert a saved search into a custom detection" ]
-    | DetectionEngineering ->
-        Pages.Placeholder.Placeholder "Detection Engineering" "Phase 3-5"
-            [ "Rule list with enable/disable and threshold tuning"; "Test a rule against sample events"
-              "Signature ruleset management (Suricata-compatible)"; "Rule performance and false-positive metrics" ]
+    | DetectionEngineering -> Pages.DetectionEngineering.DetectionEngineering ()
     | ThreatIntel ->
         Pages.Placeholder.Placeholder "Threat Intelligence" "Phase 5"
             [ "IOC and feed management (IP / domain / URL / hash)"; "CSV / STIX-style import"
@@ -81,10 +78,7 @@ let private content (route: Route) =
         Pages.Placeholder.Placeholder "Response Center" "Phase 5"
             [ "Analyst-approved response workflows"; "Blocklist feeds and connector status"
               "Simulation mode and audit trail"; "SIEM / SOAR / EDR / firewall connectors" ]
-    | Admin ->
-        Pages.Placeholder.Placeholder "Admin Settings" "Phase 3-5"
-            [ "Users, roles and SSO-ready design"; "Coverage: internal CIDRs, zones, critical assets"
-              "Groups, allowlists and triage filters"; "Integrations, notifications and audit logs" ]
+    | Admin -> Pages.Admin.Admin ()
 
 [<ReactComponent>]
 let App () =

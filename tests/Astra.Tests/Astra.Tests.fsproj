@@ -8,6 +8,8 @@
     <Compile Include="DetectionTests.fs" />
     <Compile Include="ScoringTests.fs" />
     <Compile Include="EntityResolutionTests.fs" />
+    <Compile Include="BaselineTests.fs" />
+    <Compile Include="GovernanceTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Astra.Shared\Astra.Shared.fsproj" />

@@ -205,6 +205,57 @@ let sensorHealth (store: AstraStore) (s: Sensor) : SensorHealthDto =
       SuricataRunning = h |> Option.map (fun x -> x.SuricataRunning) |> Option.defaultValue false
       Errors = h |> Option.map (fun x -> x.Errors) |> Option.defaultValue [] }
 
+// ---------------------------------------------------------- detection engineering
+let ruleDto (store: AstraStore) (d: DetectionRuleDef) : DetectionRuleDto =
+    let (RuleId rid) = d.RuleId
+    let openCount =
+        store.Detections
+        |> List.filter (fun det -> det.RuleId = d.RuleId && det.Status = "open")
+        |> List.length
+    { RuleId = rid
+      Name = d.Name
+      Description = d.Description
+      EngineKind = string d.EngineKind
+      Category = DetectionCategory.label d.Category
+      Tactic = MitreTactic.label d.Tactic
+      TechniqueId = d.TechniqueId
+      TechniqueName = d.TechniqueName
+      DefaultSeverity = Severity.label d.DefaultSeverity
+      DefaultConfidence = d.DefaultConfidence
+      Enabled = d.Enabled
+      Thresholds = d.Thresholds |> Map.toList |> List.map (fun (k, v) -> { Key = k; Value = v })
+      Version = d.Version
+      OpenDetections = openCount }
+
+let triageFilterDto (f: TriageFilter) : TriageFilterDto =
+    { FilterId = string f.FilterId
+      Name = f.Name
+      Description = f.Description
+      Conditions = f.Conditions |> List.map (fun (k, _) -> { Key = k; Value = 0.0 })
+      ConditionPairs = f.Conditions
+      Action = TriageAction.label f.Action
+      CreatedBy = f.CreatedBy
+      CreatedAt = iso f.CreatedAt
+      Enabled = f.Enabled }
+
+let allowlistDto (a: AllowlistEntry) : AllowlistDto =
+    { AllowlistId = string a.AllowlistId
+      Name = a.Name
+      Kind = AllowlistKind.label a.Kind
+      Value = a.Value
+      Reason = a.Reason
+      CreatedBy = a.CreatedBy
+      CreatedAt = iso a.CreatedAt
+      Enabled = a.Enabled }
+
+let auditDto (e: AuditEntry) : AuditEntryDto =
+    { At = iso e.At
+      Actor = e.Actor
+      ActorKind = e.ActorKind
+      Action = e.Action
+      SubjectKind = e.SubjectKind
+      SubjectId = e.SubjectId }
+
 // ------------------------------------------------------------------ incidents
 let incidentListItem (store: AstraStore) (i: Incident) : IncidentListItemDto =
     { IncidentId = iidStr i.IncidentId

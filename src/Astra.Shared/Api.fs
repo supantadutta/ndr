@@ -266,6 +266,83 @@ type AssistantSummaryDto =
       GeneratedAt: string }
 
 // ---------------------------------------------------------------------------
+// Detection engineering (rule tuning)
+// ---------------------------------------------------------------------------
+
+type RuleThresholdDto = { Key: string; Value: float }
+
+type DetectionRuleDto =
+    { RuleId: string
+      Name: string
+      Description: string
+      EngineKind: string
+      Category: string
+      Tactic: string
+      TechniqueId: string
+      TechniqueName: string
+      DefaultSeverity: string
+      DefaultConfidence: int
+      Enabled: bool
+      Thresholds: RuleThresholdDto list
+      Version: int
+      /// live count of open detections produced by this rule
+      OpenDetections: int }
+
+type RuleUpdateRequest =
+    { Enabled: bool option
+      Thresholds: RuleThresholdDto list }
+
+// ---------------------------------------------------------------------------
+// Triage actions + governance
+// ---------------------------------------------------------------------------
+
+/// A triage action against a detection. `Actor` identifies the analyst.
+type TriageRequest =
+    { Action: string            // close_benign | close_remediated | expected | escalate | reopen | assign | in_progress
+      Owner: string option
+      Note: string option
+      Actor: string }
+
+type TriageFilterDto =
+    { FilterId: string
+      Name: string
+      Description: string
+      Conditions: RuleThresholdDto list   // reused shape: Key=field, Value unused
+      ConditionPairs: (string * string) list
+      Action: string
+      CreatedBy: string
+      CreatedAt: string
+      Enabled: bool }
+
+type CreateTriageFilterRequest =
+    { Name: string
+      Description: string
+      Conditions: (string * string) list
+      Action: string             // suppress_scoring | hide | tag
+      Actor: string }
+
+type AllowlistDto =
+    { AllowlistId: string
+      Name: string
+      Kind: string
+      Value: string
+      Reason: string
+      CreatedBy: string
+      CreatedAt: string
+      Enabled: bool }
+
+type CreateAllowlistRequest =
+    { Name: string; Kind: string; Value: string; Reason: string; Actor: string }
+
+type AuditEntryDto =
+    { At: string
+      Actor: string
+      ActorKind: string
+      Action: string
+      SubjectKind: string
+      SubjectId: string }
+
+// ---------------------------------------------------------------------------
 // Route table (single source of truth for URLs)
 // ---------------------------------------------------------------------------
 
@@ -281,3 +358,9 @@ module Routes =
     let ingestEvents = "/api/ingest/events"
     let ingestHeartbeat = "/api/ingest/heartbeat"
     let assistantEntity (id: string) = sprintf "/api/assistant/entity/%s" id
+    let rules = "/api/rules"
+    let rule (id: string) = sprintf "/api/rules/%s" id
+    let triageDetection (id: string) = sprintf "/api/detections/%s/triage" id
+    let triageFilters = "/api/triage-filters"
+    let allowlists = "/api/allowlists"
+    let auditLog = "/api/audit"

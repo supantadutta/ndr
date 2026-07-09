@@ -142,6 +142,32 @@ type IncidentListItem =
       DetectionCount: int
       CreatedAt: string }
 
+type RuleThreshold = { Key: string; Value: float }
+
+type DetectionRule =
+    { RuleId: string
+      Name: string
+      Description: string
+      EngineKind: string
+      Category: string
+      Tactic: string
+      TechniqueId: string
+      TechniqueName: string
+      DefaultSeverity: string
+      DefaultConfidence: int
+      Enabled: bool
+      Thresholds: RuleThreshold list
+      Version: int
+      OpenDetections: int }
+
+type AuditEntry =
+    { At: string
+      Actor: string
+      ActorKind: string
+      Action: string
+      SubjectKind: string
+      SubjectId: string }
+
 type AssistantStatement = { Text: string; Citations: string list }
 
 type AssistantSummary =

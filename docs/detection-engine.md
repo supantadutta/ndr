@@ -39,20 +39,43 @@ The engine runs every enabled rule over a sliding window of recent normalized ev
 
 This is what the Detection Center renders, and what the (future) AI assistant cites.
 
-## Starter rules (Phase 1)
+## Rules (12, Phases 1–3)
 
 | Rule id | Family | MITRE | Signal |
 |---------|--------|-------|--------|
 | `recon.internal_port_scan` | Reconnaissance | T1046 | distinct ports/hosts fanout from one internal host |
 | `c2.dns_tunnel_indicators` | Command & Control | T1071.004 | long / TXT-heavy queries to one domain |
 | `c2.beaconing` | Command & Control | T1071.001 | low-variance periodic external connections |
+| `c2.rare_external_destination` | Command & Control | T1071 | repeated connections to a near-unique external destination |
 | `cred.bruteforce_then_success` | Credential Access | T1110 | failure burst → success, same account/source |
+| `cred.password_spray` | Credential Access | T1110.003 | failures across many distinct accounts from one source |
 | `lateral.admin_share_access` | Lateral Movement | T1021.002 | C$/ADMIN$ writes across internal hosts |
+| `lateral.internal_fanout` | Lateral Movement | T1021 | one host → many internal hosts over 445/3389/22 |
+| `lateral.remote_access_spread` | Lateral Movement | T1021 | RDP/SSH from one host to several internal hosts |
 | `exfil.large_upload_rare_destination` | Exfiltration | T1048 | upload-dominated volume to a rarely-contacted destination |
+| `policy.cleartext_external` | Policy / Exposure | T1048.003 | FTP/Telnet/plain-HTTP to an external destination |
+| `signature.high_severity_ids_alert` | Signature (IDS) | T1071 | high-severity Suricata match, correlated with behavior |
 
-Each demonstrates a different engine kind (behavioral, statistical, rule) and a
-different combination of evidence, baseline comparison, and rarity/velocity/breadth
-signals.
+Rules span behavioral, statistical, rule, and signature engine kinds. Each is
+individually **enable/disable**-able and its thresholds are **tunable at runtime**
+through the Detection Engineering API/UI (`store.RuleThreshold` reads live config, so a
+change takes effect on the next analysis cycle without a rebuild).
+
+## Behavioral baselines
+
+`Baselines.fs` provides the statistical foundation rules build on: `mean`/`stddev`,
+`median`/`mad`, classic and **robust z-score**, `percentile`, **frequency rarity**, a
+streaming **EWMA** accumulator (mean + variance + decay), and **time-of-day
+histograms** for off-hours detection. `judgeNumeric` returns an `AnomalyVerdict`
+(is-anomalous + score + baseline/observed descriptions) that a rule can drop straight
+into its evidence and baseline-comparison fields.
+
+## Triage suppression & re-fire prevention
+
+A detection an analyst closes (benign/remediated) or that a **triage filter** matches is
+marked suppressed: the scoring engine excludes it, and dedup treats it as
+already-handled so the next analysis cycle does **not** re-raise it. Every triage and
+tuning action is written to the audit log.
 
 ## Detection families (full catalog, delivered across phases)
 

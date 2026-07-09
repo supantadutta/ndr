@@ -109,8 +109,11 @@ let materialize (def: DetectionRuleDef) (now: DateTimeOffset) (draft: DetectionD
 let private evidence label value (events: NormalizedEvent list) =
     { Label = label; Value = value; EventIds = events |> List.truncate 50 |> List.map (fun e -> e.EventId) }
 
-let private threshold (def: DetectionRuleDef) key fallback =
-    def.Thresholds |> Map.tryFind key |> Option.defaultValue fallback
+/// Read a rule threshold from the live (tunable) store config, falling back to
+/// the rule's built-in default. This is what makes detection-engineering tuning
+/// take effect without a rebuild.
+let private threshold (input: RuleInput) (def: DetectionRuleDef) key fallback =
+    input.Store.RuleThreshold(def.RuleId, key, fallback)
 
 // ---------------------------------------------------------------------------
 // Rule: internal port scan (vertical + horizontal)  [Reconnaissance]
@@ -129,8 +132,8 @@ type InternalPortScanRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let portThreshold = threshold def "distinct_ports" 100.0 |> int
-            let hostThreshold = threshold def "distinct_hosts" 50.0 |> int
+            let portThreshold = threshold input def "distinct_ports" 100.0 |> int
+            let hostThreshold = threshold input def "distinct_hosts" 50.0 |> int
             input.Window
             |> List.filter (fun e ->
                 e.Direction = TrafficDirection.InternalToInternal
@@ -194,9 +197,9 @@ type DnsTunnelIndicatorsRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let minQueries = threshold def "min_queries" 30.0 |> int
-            let lenThreshold = threshold def "avg_query_length" 50.0
-            let txtRatioThreshold = threshold def "txt_ratio" 0.5
+            let minQueries = threshold input def "min_queries" 30.0 |> int
+            let lenThreshold = threshold input def "avg_query_length" 50.0
+            let txtRatioThreshold = threshold input def "txt_ratio" 0.5
 
             let domainOf (q: string) =
                 let parts = q.TrimEnd('.').Split('.')
@@ -271,8 +274,8 @@ type BeaconingRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let minConnections = threshold def "min_connections" 8.0 |> int
-            let maxCv = threshold def "max_interval_cv" 0.25
+            let minConnections = threshold input def "min_connections" 8.0 |> int
+            let maxCv = threshold input def "max_interval_cv" 0.25
 
             input.Window
             |> List.filter (fun e ->
@@ -358,7 +361,7 @@ type BruteForceAuthRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let minFailures = threshold def "min_failures" 10.0 |> int
+            let minFailures = threshold input def "min_failures" 10.0 |> int
             input.Window
             |> List.choose (fun e ->
                 match e.Payload with
@@ -429,7 +432,7 @@ type AdminShareLateralRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let minTargets = threshold def "min_targets" 1.0 |> int
+            let minTargets = threshold input def "min_targets" 1.0 |> int
             input.Window
             |> List.choose (fun e ->
                 match e.Payload with
@@ -493,9 +496,9 @@ type RareDestinationExfilRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let minBytesOut = threshold def "min_bytes_out" 50_000_000.0 |> int64
-            let maxPeers = threshold def "max_peer_count" 2.0 |> int
-            let minRatio = threshold def "min_out_in_ratio" 5.0
+            let minBytesOut = threshold input def "min_bytes_out" 50_000_000.0 |> int64
+            let maxPeers = threshold input def "max_peer_count" 2.0 |> int
+            let minRatio = threshold input def "min_out_in_ratio" 5.0
 
             let external = input.Window |> List.filter (fun e -> e.Direction = TrafficDirection.InternalToExternal)
             // environment-wide popularity of each external destination
@@ -566,7 +569,7 @@ type HighSeverityIdsAlertRule() =
     interface IDetectionRule with
         member _.Definition = def
         member _.Evaluate input =
-            let maxSev = threshold def "max_ids_severity" 2.0 |> int
+            let maxSev = threshold input def "max_ids_severity" 2.0 |> int
             input.Window
             |> List.choose (fun e ->
                 match e.Payload with
@@ -616,6 +619,264 @@ type HighSeverityIdsAlertRule() =
                       SeverityOverride = Some sev }))
 
 // ---------------------------------------------------------------------------
+// Rule: rare external destination  [Command and Control]
+// ---------------------------------------------------------------------------
+
+type RareExternalDestinationRule() =
+    let def =
+        mkRuleDef "c2.rare_external_destination"
+            "Connection to Rare External Destination"
+            "An internal host repeatedly connected to an external destination that almost no other host in the environment contacts, a common trait of dedicated C2 infrastructure."
+            DetectionEngineKind.Statistical DetectionCategory.CommandAndControl
+            MitreTactic.CommandAndControl "T1071" "Application Layer Protocol"
+            KillChainStage.CommandAndControl Severity.Medium 60
+            [ "min_connections", 6.0; "max_peer_count", 1.0 ]
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let minConn = threshold input def "min_connections" 6.0 |> int
+            let maxPeers = threshold input def "max_peer_count" 1.0 |> int
+            let external = input.Window |> List.filter (fun e -> e.Direction = TrafficDirection.InternalToExternal)
+            let popularity =
+                external
+                |> List.groupBy (fun e -> e.DestinationIp)
+                |> List.map (fun (dst, evts) -> dst, evts |> List.map (fun e -> e.SourceIp) |> List.distinct |> List.length)
+                |> Map.ofList
+            external
+            |> List.groupBy (fun e -> e.SourceIp, e.DestinationIp)
+            |> List.choose (fun ((srcIp, dstIp), evts) ->
+                let peers = popularity |> Map.tryFind dstIp |> Option.defaultValue 0
+                if evts.Length < minConn || peers > maxPeers then None
+                else
+                    let src = input.Store.ResolveEntity(EntityType.Host, srcIp, srcIp, input.Now)
+                    if input.Store.HasOpenDetection((RuleId "c2.rare_external_destination"), src.EntityId) then None
+                    else
+                    let dst = input.Store.ResolveEntity(EntityType.ExternalDestination, dstIp, dstIp, input.Now)
+                    Some (materialize def input.Now
+                        { Title = sprintf "Rare external destination: %s -> %s" src.DisplayName dstIp
+                          Summary = sprintf "%s made %d connections to %s, which only %d internal host(s) contact." src.DisplayName evts.Length dstIp peers
+                          AffectedEntity = src; SourceEntity = Some src; TargetEntity = Some dst
+                          Evidence =
+                            [ evidence "connections" (string evts.Length) evts
+                              evidence "destination popularity" (sprintf "%d internal host(s)" peers) evts
+                              evidence "destination" dstIp [] ]
+                          Events = evts
+                          BaselineComparisons =
+                            [ { Metric = "destination_popularity"; BaselineValue = "normal destinations contacted by many hosts"
+                                ObservedValue = sprintf "%d host(s)" peers; DeviationDescription = "near-unique destination for this environment" } ]
+                          WhySuspicious = "Dedicated C2 endpoints are typically contacted by only the compromised host(s). Rarity is a strong prioritization signal even before volume or timing analysis."
+                          FalsePositives = [ "Niche SaaS or partner services used by one team"; "A developer's personal infrastructure" ]
+                          InvestigationSteps = [ "Check destination reputation, ASN and registration age"; "Review what the connection carried (TLS SNI, HTTP host)"; "Correlate with DNS: was it resolved or contacted by raw IP?" ]
+                          ResponseActions = [ "Add destination to watch/blocklist (requires approval)" ]
+                          TuningFields = [ "source_ip", srcIp; "destination_ip", dstIp; "detection_type", "c2.rare_external_destination" ]
+                          ConfidenceOverride = None; SeverityOverride = None }))
+
+// ---------------------------------------------------------------------------
+// Rule: one host contacting many internal hosts over admin ports  [Lateral / Recon]
+// ---------------------------------------------------------------------------
+
+type NewInternalPeerRule() =
+    let def =
+        mkRuleDef "lateral.internal_fanout"
+            "Internal Fan-Out Over Remote-Access Ports"
+            "One host connected to an unusually large number of distinct internal hosts over remote-access/file-sharing ports (445/3389/22), a hallmark of lateral movement or spread."
+            DetectionEngineKind.Behavioral DetectionCategory.LateralMovement
+            MitreTactic.LateralMovement "T1021" "Remote Services"
+            KillChainStage.LateralMovement Severity.High 68
+            [ "min_targets", 8.0 ]
+
+    let lateralPorts = set [ 445; 3389; 22 ]
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let minTargets = threshold input def "min_targets" 8.0 |> int
+            input.Window
+            |> List.filter (fun e ->
+                e.Direction = TrafficDirection.InternalToInternal
+                && (match e.DestinationPort with Some p -> Set.contains p lateralPorts | None -> false))
+            |> List.groupBy (fun e -> e.SourceIp)
+            |> List.choose (fun (srcIp, evts) ->
+                let targets = evts |> List.map (fun e -> e.DestinationIp) |> List.distinct
+                if targets.Length < minTargets then None
+                else
+                    let src = input.Store.ResolveEntity(EntityType.Host, srcIp, srcIp, input.Now)
+                    if input.Store.HasOpenDetection((RuleId "lateral.internal_fanout"), src.EntityId) then None
+                    else
+                    let ports = evts |> List.choose (fun e -> e.DestinationPort) |> List.distinct |> List.map string
+                    Some (materialize def input.Now
+                        { Title = sprintf "Internal fan-out from %s to %d hosts" src.DisplayName targets.Length
+                          Summary = sprintf "%s connected to %d distinct internal hosts over ports %s." src.DisplayName targets.Length (String.concat ", " ports)
+                          AffectedEntity = src; SourceEntity = Some src; TargetEntity = None
+                          Evidence =
+                            [ evidence "distinct internal targets" (string targets.Length) evts
+                              evidence "remote-access ports" (String.concat ", " ports) evts ]
+                          Events = evts
+                          BaselineComparisons =
+                            [ { Metric = "distinct_internal_peers_remote_ports"; BaselineValue = "workstations typically reach < 3 such hosts"
+                                ObservedValue = string targets.Length; DeviationDescription = "broad east-west spread over remote-access ports" } ]
+                          WhySuspicious = "Broad connections to many hosts over 445/3389/22 indicate a host sweeping or spreading, whether reconnaissance or active lateral movement."
+                          FalsePositives = [ "Management/jump hosts and monitoring servers"; "Backup or patch-deployment systems" ]
+                          InvestigationSteps = [ "Determine whether the source is an authorized management host"; "Check which accounts drove the connections"; "Look for prior C2 or credential detections on the source" ]
+                          ResponseActions = [ "Isolate source host (simulation) if unauthorized" ]
+                          TuningFields = [ "source_ip", srcIp; "detection_type", "lateral.internal_fanout" ]
+                          ConfidenceOverride = None
+                          SeverityOverride = if targets.Length >= 20 then Some Severity.Critical else None }))
+
+// ---------------------------------------------------------------------------
+// Rule: password spraying  [Credential Attack]
+// ---------------------------------------------------------------------------
+
+type PasswordSprayRule() =
+    let def =
+        mkRuleDef "cred.password_spray"
+            "Password Spraying"
+            "A single source attempted authentication against many distinct accounts with few attempts each — the low-and-slow breadth pattern of password spraying rather than per-account brute force."
+            DetectionEngineKind.Behavioral DetectionCategory.CredentialAttack
+            MitreTactic.CredentialAccess "T1110.003" "Brute Force: Password Spraying"
+            KillChainStage.Exploitation Severity.High 70
+            [ "min_accounts", 8.0 ]
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let minAccounts = threshold input def "min_accounts" 8.0 |> int
+            input.Window
+            |> List.choose (fun e ->
+                match e.Payload with
+                | EventPayload.Auth a when a.Result = "failure" -> Some (e, a)
+                | _ -> None)
+            |> List.groupBy (fun (e, _) -> e.SourceIp)
+            |> List.choose (fun (srcIp, pairs) ->
+                let accounts = pairs |> List.choose (fun (e, _) -> e.AccountName) |> List.distinct
+                if accounts.Length < minAccounts then None
+                else
+                    let src = input.Store.ResolveEntity(EntityType.Host, srcIp, srcIp, input.Now)
+                    if input.Store.HasOpenDetection((RuleId "cred.password_spray"), src.EntityId) then None
+                    else
+                    let evts = pairs |> List.map fst
+                    Some (materialize def input.Now
+                        { Title = sprintf "Password spray from %s against %d accounts" srcIp accounts.Length
+                          Summary = sprintf "%s produced failed authentications against %d distinct accounts." srcIp accounts.Length
+                          AffectedEntity = src; SourceEntity = Some src; TargetEntity = None
+                          Evidence =
+                            [ evidence "distinct accounts targeted" (string accounts.Length) evts
+                              evidence "total failures" (string evts.Length) evts
+                              evidence "sample accounts" (String.concat ", " (accounts |> List.truncate 8)) [] ]
+                          Events = evts
+                          BaselineComparisons =
+                            [ { Metric = "distinct_accounts_failed_per_source"; BaselineValue = "1-2 for a legitimate source"
+                                ObservedValue = string accounts.Length; DeviationDescription = "breadth across accounts indicates spraying" } ]
+                          WhySuspicious = "Trying one or two common passwords across many accounts evades per-account lockouts. Breadth of targeted accounts from a single source is the defining signal."
+                          FalsePositives = [ "A misconfigured service or script with a stale credential hitting several endpoints"; "Vulnerability scanners performing auth checks" ]
+                          InvestigationSteps = [ "Confirm whether any of the sprayed accounts subsequently succeeded"; "Identify the source host and whether it is managed"; "Review the accounts targeted for a pattern (e.g. alphabetical enumeration)" ]
+                          ResponseActions = [ "Block source (simulation)"; "Force resets on any account that succeeded" ]
+                          TuningFields = [ "source_ip", srcIp; "detection_type", "cred.password_spray" ]
+                          ConfidenceOverride = None; SeverityOverride = None }))
+
+// ---------------------------------------------------------------------------
+// Rule: suspicious remote access spread (RDP/SSH)  [Lateral Movement]
+// ---------------------------------------------------------------------------
+
+type SuspiciousRemoteAccessRule() =
+    let def =
+        mkRuleDef "lateral.remote_access_spread"
+            "Remote Access to Multiple Internal Hosts"
+            "A host initiated interactive remote-access sessions (RDP/SSH) to several distinct internal hosts, consistent with an operator moving laterally using stolen credentials."
+            DetectionEngineKind.Behavioral DetectionCategory.LateralMovement
+            MitreTactic.LateralMovement "T1021" "Remote Services"
+            KillChainStage.LateralMovement Severity.High 66
+            [ "min_targets", 3.0 ]
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let minTargets = threshold input def "min_targets" 3.0 |> int
+            input.Window
+            |> List.filter (fun e ->
+                e.Direction = TrafficDirection.InternalToInternal
+                && (e.ApplicationProtocol = AppProtocol.Rdp || e.ApplicationProtocol = AppProtocol.Ssh))
+            |> List.groupBy (fun e -> e.SourceIp, e.ApplicationProtocol)
+            |> List.choose (fun ((srcIp, proto), evts) ->
+                let targets = evts |> List.map (fun e -> e.DestinationIp) |> List.distinct
+                if targets.Length < minTargets then None
+                else
+                    let src = input.Store.ResolveEntity(EntityType.Host, srcIp, srcIp, input.Now)
+                    if input.Store.HasOpenDetection((RuleId "lateral.remote_access_spread"), src.EntityId) then None
+                    else
+                    let protoName = AppProtocol.label proto
+                    Some (materialize def input.Now
+                        { Title = sprintf "%s spread from %s to %d hosts" (protoName.ToUpper()) src.DisplayName targets.Length
+                          Summary = sprintf "%s opened %s sessions to %d distinct internal hosts." src.DisplayName protoName targets.Length
+                          AffectedEntity = src; SourceEntity = Some src; TargetEntity = None
+                          Evidence =
+                            [ evidence "protocol" protoName evts
+                              evidence "distinct targets" (string targets.Length) evts ]
+                          Events = evts
+                          BaselineComparisons =
+                            [ { Metric = sprintf "%s_targets_per_source" protoName; BaselineValue = "usually 0-1 for a workstation"
+                                ObservedValue = string targets.Length; DeviationDescription = "multi-host interactive access is unusual" } ]
+                          WhySuspicious = "Interactive remote access to several machines in a short window is how operators move through a network after gaining a foothold."
+                          FalsePositives = [ "IT administration from a jump host"; "Automation using SSH for orchestration" ]
+                          InvestigationSteps = [ "Confirm the source is an authorized admin/jump host"; "Identify the account used and whether it is privileged"; "Check targets for follow-on activity (file writes, new services)" ]
+                          ResponseActions = [ "Isolate source (simulation)"; "Review the account's recent authentications" ]
+                          TuningFields = [ "source_ip", srcIp; "protocol", protoName; "detection_type", "lateral.remote_access_spread" ]
+                          ConfidenceOverride = None; SeverityOverride = None }))
+
+// ---------------------------------------------------------------------------
+// Rule: cleartext protocol exposure to external  [Policy / Exposure]
+// ---------------------------------------------------------------------------
+
+type CleartextProtocolExposureRule() =
+    let def =
+        mkRuleDef "policy.cleartext_external"
+            "Cleartext Protocol to External Destination"
+            "An internal host used a cleartext protocol (FTP/Telnet/plain HTTP) to an external destination, exposing data and credentials in transit — a policy and security exposure."
+            DetectionEngineKind.Rule DetectionCategory.PolicyExposure
+            MitreTactic.Exfiltration "T1048.003" "Exfiltration Over Unencrypted Non-C2 Protocol"
+            KillChainStage.ActionOnObjectives Severity.Medium 72
+            [ "min_connections", 1.0 ]
+
+    let cleartextPorts = set [ 21; 23; 80; 20; 143; 110 ]
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let minConn = threshold input def "min_connections" 1.0 |> int
+            let isCleartext (e: NormalizedEvent) =
+                e.ApplicationProtocol = AppProtocol.Ftp
+                || e.ApplicationProtocol = AppProtocol.Http
+                || (match e.DestinationPort with Some p -> Set.contains p cleartextPorts | None -> false)
+            input.Window
+            |> List.filter (fun e -> e.Direction = TrafficDirection.InternalToExternal && isCleartext e)
+            |> List.groupBy (fun e -> e.SourceIp)
+            |> List.choose (fun (srcIp, evts) ->
+                if evts.Length < minConn then None
+                else
+                    let src = input.Store.ResolveEntity(EntityType.Host, srcIp, srcIp, input.Now)
+                    if input.Store.HasOpenDetection((RuleId "policy.cleartext_external"), src.EntityId) then None
+                    else
+                    let dsts = evts |> List.map (fun e -> e.DestinationIp) |> List.distinct
+                    let ports = evts |> List.choose (fun e -> e.DestinationPort) |> List.distinct |> List.map string
+                    Some (materialize def input.Now
+                        { Title = sprintf "Cleartext protocol to external from %s" src.DisplayName
+                          Summary = sprintf "%s used cleartext protocols (ports %s) to %d external destination(s)." src.DisplayName (String.concat ", " ports) dsts.Length
+                          AffectedEntity = src; SourceEntity = Some src; TargetEntity = None
+                          Evidence =
+                            [ evidence "cleartext ports" (String.concat ", " ports) evts
+                              evidence "external destinations" (String.concat ", " (dsts |> List.truncate 8)) evts
+                              evidence "connections" (string evts.Length) evts ]
+                          Events = evts
+                          BaselineComparisons = []
+                          WhySuspicious = "Cleartext protocols to the internet expose credentials and data to interception and are typically disallowed by policy; they can also indicate exfiltration over an unencrypted channel."
+                          FalsePositives = [ "Legacy integrations that legitimately use FTP/HTTP"; "Captive-portal or health-check traffic on port 80" ]
+                          InvestigationSteps = [ "Identify the destination and what data was transferred"; "Determine whether an encrypted alternative exists"; "Check whether credentials were sent in the clear" ]
+                          ResponseActions = [ "Flag for policy remediation"; "Block destination if exfiltration is suspected (requires approval)" ]
+                          TuningFields = [ "source_ip", srcIp; "detection_type", "policy.cleartext_external" ]
+                          ConfidenceOverride = None; SeverityOverride = None }))
+
+// ---------------------------------------------------------------------------
 // Engine
 // ---------------------------------------------------------------------------
 
@@ -627,24 +888,42 @@ type DetectionEngine(store: AstraStore) =
           BruteForceAuthRule()
           AdminShareLateralRule()
           RareDestinationExfilRule()
-          HighSeverityIdsAlertRule() ]
+          HighSeverityIdsAlertRule()
+          RareExternalDestinationRule()
+          NewInternalPeerRule()
+          PasswordSprayRule()
+          SuspiciousRemoteAccessRule()
+          CleartextProtocolExposureRule() ]
+
+    do store.SeedRuleConfig(rules |> List.map (fun r -> r.Definition))
 
     member _.Rules = rules
     member _.RuleDefinitions = rules |> List.map (fun r -> r.Definition)
 
     /// Evaluate all enabled rules over the window; store and return new detections.
+    /// Rule enablement + thresholds come from the tunable store config, and any
+    /// matching triage filter auto-suppresses a new detection's scoring impact.
     member _.Run(window: NormalizedEvent list, now: DateTimeOffset) =
         let input = { Window = window; Now = now; Store = store }
         let produced =
             rules
-            |> List.filter (fun r -> r.Definition.Enabled)
+            |> List.filter (fun r -> store.IsRuleEnabled r.Definition.RuleId)
             |> List.collect (fun r ->
                 try r.Evaluate input
                 with _ -> [])   // a failing rule must never take down the pipeline
-        for d in produced do
+        let finalized =
+            produced
+            |> List.map (fun d ->
+                match store.MatchingFilter d.TuningFields with
+                | Some f ->
+                    // A triage filter matched: keep visibility, mark suppressed.
+                    { d with TriageState = TriageState.ExpectedBehavior
+                             Status = "open"
+                             AssignedOwner = Some (sprintf "auto:filter:%s" f.Name) }
+                | None -> d)
+        for d in finalized do
             store.AddDetection d
-            // update affected entity's counters
             match store.TryGetEntity d.AffectedEntity with
             | Some e -> store.UpsertEntity { e with RelatedDetectionCount = e.RelatedDetectionCount + 1 }
             | None -> ()
-        produced
+        finalized
