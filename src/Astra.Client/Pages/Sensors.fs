@@ -19,11 +19,10 @@ let private healthBar (label: string) (pct: float) =
 
 [<ReactComponent>]
 let Sensors () =
-    let (items, setItems) = React.useState<Result<SensorHealth list, string> option> None
-    React.useEffectOnce(fun () -> Api.getSensors () |> Promise.map (Some >> setItems) |> Promise.start)
+    let items, updatedAt, refresh = useLiveData Api.getSensors 8000
 
     Html.div [
-        pageHeader "Sensor Health" "Fleet status, capture health and pipeline state"
+        pageHeaderLive "Sensor Health" "Fleet status, capture health and pipeline state" updatedAt refresh
         remote items "sensors" (fun list ->
             Html.div [
                 prop.style [ style.display.grid; style.gridTemplateColumns [ length.fr 1; length.fr 1; length.fr 1 ]; style.gap 14 ]

@@ -75,6 +75,17 @@ let sensorsHealthHandler (store: AstraStore) : HttpHandler =
         let items = store.Sensors |> List.map (Astra.Server.Mappers.sensorHealth store)
         json items next ctx
 
+let assistantEntityHandler (store: AstraStore) (provider: Astra.Server.Assistant.IAnalysisProvider) (id: string) : HttpHandler =
+    fun next ctx ->
+        match Guid.TryParse id with
+        | true, g ->
+            match store.TryGetEntity(EntityId g) with
+            | Some e ->
+                let bundle = Astra.Server.Assistant.bundleFor store e
+                json (provider.Summarize bundle) next ctx
+            | None -> (setStatusCode 404 >=> json { Error = "not_found"; Detail = "entity not found" }) next ctx
+        | _ -> badRequest "invalid entity id" next ctx
+
 // ------------------------------------------------------------------ ingestion
 let private requireSensorToken (token: string) : HttpHandler =
     fun next ctx ->
@@ -146,12 +157,13 @@ let heartbeatHandler (store: AstraStore) (token: string) : HttpHandler =
         }
 
 // ------------------------------------------------------------------ routing
-let webApp (store: AstraStore) (pipeline: IngestionPipeline) (token: string) : HttpHandler =
+let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Server.Assistant.IAnalysisProvider) (token: string) : HttpHandler =
     choose [
         GET >=> choose [
             route Routes.health >=> healthHandler
             route Routes.dashboardSummary >=> dashboardHandler store
             route Routes.entityQueue >=> entityQueueHandler store
+            routef "/api/assistant/entity/%s" (assistantEntityHandler store provider)
             routef "/api/entities/%s" (entityDetailHandler store)
             route Routes.detections >=> detectionsHandler store
             routef "/api/detections/%s" (detectionDetailHandler store)

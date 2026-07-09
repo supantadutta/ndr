@@ -7,11 +7,10 @@ open Astra.Client.Components
 
 [<ReactComponent>]
 let Incidents () =
-    let (items, setItems) = React.useState<Result<IncidentListItem list, string> option> None
-    React.useEffectOnce(fun () -> Api.getIncidents () |> Promise.map (Some >> setItems) |> Promise.start)
+    let items, updatedAt, refresh = useLiveData Api.getIncidents 10000
 
     Html.div [
-        pageHeader "Incident Workbench" "Correlated attack campaigns raised from clustered detections"
+        pageHeaderLive "Incident Workbench" "Correlated attack campaigns raised from clustered detections" updatedAt refresh
         panel [
             remote items "incidents" (fun list ->
                 if list.IsEmpty then

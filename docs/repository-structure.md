@@ -35,6 +35,12 @@ astra-ndr/
 │   │   ├── Db.fs               forward-only migration runner (Npgsql)
 │   │   └── Program.fs           host wiring, DI, startup, seed
 │   │
+│   ├── Astra.Sensor/            SENSOR AGENT (real Zeek/Suricata → brain)
+│   │   ├── Zeek.fs              Zeek TSV parser (conn/dns/http/ssl/smb/dce_rpc/…)
+│   │   ├── Suricata.fs          Suricata EVE JSON + fast.log parsers
+│   │   ├── Agent.fs             batching HTTP agent, heartbeat, buffer, live-tail
+│   │   └── Program.fs           CLI: replay / live modes
+│   │
 │   └── Astra.Client/            ANALYST CONSOLE (Fable 5 + Feliz)
 │       ├── Types.fs             client view of DTOs + Route DU + hash parser
 │       ├── Api.fs               typed fetch client + Thoth decoders
@@ -57,8 +63,12 @@ astra-ndr/
 │   ├── client.Dockerfile        Fable→Vite build → nginx
 │   └── nginx.conf               SPA + /api reverse proxy + hardening headers
 │
+├── tests/Astra.Tests/           xUnit: parser, detection, scoring, entity-resolution tests
+│
 ├── lab/
-│   └── demo_sensor.py           sensor simulator: attack scenarios over the ingest API
+│   ├── demo_sensor.py           sensor simulator: attack scenarios over the ingest API
+│   ├── generate_samples.py      writes sample Zeek/Suricata logs for sensor replay
+│   └── samples/                 generated Zeek TSV + Suricata eve.json
 │
 └── docs/                        architecture, schema, detection, scoring, API,
                                  security, entity resolution, mitre, lab, roadmap, …

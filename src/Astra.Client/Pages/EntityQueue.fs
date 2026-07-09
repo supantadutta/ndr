@@ -7,11 +7,10 @@ open Astra.Client.Components
 
 [<ReactComponent>]
 let EntityQueue () =
-    let (page, setPage) = React.useState<Result<EntityQueuePage, string> option> None
-    React.useEffectOnce(fun () -> Api.getEntityQueue 1 |> Promise.map (Some >> setPage) |> Promise.start)
+    let page, updatedAt, refresh = useLiveData (fun () -> Api.getEntityQueue 1) 10000
 
     Html.div [
-        pageHeader "Prioritized Entity Queue" "Entities ranked by unified urgency score"
+        pageHeaderLive "Prioritized Entity Queue" "Entities ranked by unified urgency score" updatedAt refresh
         panel [
             remote page "entities" (fun p ->
                 if p.Items.IsEmpty then

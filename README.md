@@ -93,30 +93,37 @@ tunnel, HTTPS beaconing, brute-force + success, admin-share lateral movement, la
 exfil) over the **real** ingestion API. Watch them surface as detections and
 correlated incidents. See [`docs/lab-demo.md`](docs/lab-demo.md).
 
-## What works today (Phase 1)
+## What works today (Phases 1–2)
 
-- ✅ F# solution: shared model, Giraffe backend, Fable 5 console
-- ✅ Normalized event schema + typed protocol payloads (DNS/HTTP/TLS/SMB/DCERPC/Auth/…)
+- ✅ F# solution: shared model, Giraffe backend, Fable 5 console, **real sensor agent**
+- ✅ Normalized event schema + typed protocol payloads (DNS/HTTP/TLS/SMB/DCERPC/Auth/**IDS**/…)
 - ✅ Internal/external CIDR classification + traffic direction/lane
 - ✅ Entity resolution (IP→host, account, domain, external destination)
 - ✅ Async ingestion pipeline (bounded channel, backpressure, background worker)
-- ✅ Detection engine with 6 real starter rules across recon / C2 / lateral /
-  credential / exfil families, each fully explained (evidence, baseline comparison,
+- ✅ **Astra.Sensor agent** — parses **real Zeek TSV + Suricata EVE JSON / fast.log**,
+  normalizes, and posts over HTTP; live-tail and PCAP-replay modes; local buffering + retry
+- ✅ Detection engine with 7 real rules across recon / C2 / lateral / credential / exfil /
+  **signature (IDS)** families, each fully explained (evidence, baseline comparison,
   why-suspicious, investigation & response steps, MITRE mapping)
+- ✅ **Suricata IDS signatures correlated with behavioral detections** on the same entity
 - ✅ Explainable scoring (risk / urgency / threat / certainty with signed factors)
 - ✅ Correlation engine → incidents with attack-profile classification
+- ✅ **AI investigation assistant** — read-only, evidence-bound, provider-pluggable
+  (deterministic today; local/external LLM slots in via `IAnalysisProvider`)
+- ✅ **Live auto-refreshing console** (10s polling) so real sensor telemetry streams in
 - ✅ PostgreSQL migrations (40+ tables) applied at startup; in-memory fallback
 - ✅ Sensor heartbeat + health, auto-registration
-- ✅ Dashboard, Entity Queue, Entity Detail, Detection Center, Incidents, Sensor Health
+- ✅ Dashboard, Entity Queue, Entity Detail (+ AI summary), Detection Center, Incidents, Sensor Health
 - ✅ Docker Compose (postgres + redis + clickhouse + server + client)
-- ✅ Lab sensor simulator exercising the HTTP ingest API
+- ✅ Lab: sample Zeek/Suricata log generator + sensor replay + HTTP ingest simulator
+- ✅ **Test suite** (21 tests: parsers, detection rules, scoring, entity resolution)
 
 ## Delivery roadmap
 
 | Phase | Focus |
 |-------|-------|
 | **1 — done** | Full-stack skeleton, schema, ingestion + detection + scoring + correlation, first dashboards, Docker Compose, lab |
-| **2** | Zeek parser, Suricata EVE/fast-log parsers, normalization from raw logs, PCAP replay, telemetry persistence (ClickHouse), sensor health UI depth |
+| **2 — done** | Real sensor agent (Zeek + Suricata EVE/fast-log parsers), normalization from raw logs, PCAP/log replay, IDS signature detection + correlation, live auto-refresh UI, AI investigation assistant (pluggable), test suite. *(ClickHouse telemetry persistence remains for Phase 2.5.)* |
 | **3** | Full detection families, baseline engine, triage workflows, detection engineering UI |
 | **4** | Attack graph, richer incident correlation, threat-hunting search, saved searches, custom detections |
 | **5** | Threat intelligence, response center + connectors, SIEM/webhook/Kafka exports, AI investigation assistant, reporting |

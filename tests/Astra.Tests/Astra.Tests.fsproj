@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Fixtures.fs" />
+    <Compile Include="ParserTests.fs" />
+    <Compile Include="DetectionTests.fs" />
+    <Compile Include="ScoringTests.fs" />
+    <Compile Include="EntityResolutionTests.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Astra.Shared\Astra.Shared.fsproj" />
+    <ProjectReference Include="..\..\src\Astra.Server\Astra.Server.fsproj" />
+    <ProjectReference Include="..\..\src\Astra.Sensor\Astra.Sensor.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+</Project>

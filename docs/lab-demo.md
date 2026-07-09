@@ -9,6 +9,22 @@ health and generates synthetic telemetry reproducing six attack scenarios, then 
 analysis pass. The dashboard, entity queue, detections, incidents and sensor health are
 populated immediately. Set `ASTRA_SEED_DEMO=false` to start empty.
 
+## 1b. Real sensor over Zeek/Suricata logs (recommended)
+
+The `Astra.Sensor` agent parses **real Zeek TSV + Suricata EVE JSON** and posts to the
+brain — the same path a production sensor uses. Generate sample logs (stand-ins for
+Zeek/Suricata output over a PCAP) and replay them:
+
+```bash
+python3 lab/generate_samples.py                 # writes lab/samples/*.log + eve.json
+dotnet run --project src/Astra.Sensor -- replay --log-dir lab/samples
+```
+
+Replay rebases timestamps to now by default, so detections fire immediately. This path
+also produces **Suricata-driven IDS signature detections** that correlate with the
+behavioral ones on the same host, plus a real AI investigation summary on the entity
+page.
+
 ## 2. Lab sensor simulator (exercises the real ingest API)
 
 [`lab/demo_sensor.py`](../lab/demo_sensor.py) authenticates as a sensor and replays the

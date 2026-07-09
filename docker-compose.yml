@@ -88,6 +88,21 @@ services:
     ports:
       - "8080:80"
 
+  # Optional real sensor: replays the sample Zeek/Suricata logs through the
+  # ingest API. Enable with:  docker compose --profile lab up --build
+  # For a production sensor, run astra-sensor in `live` mode against a bind-mount
+  # of your Zeek log dir + Suricata eve.json instead.
+  sensor:
+    build:
+      context: .
+      dockerfile: deploy/sensor.Dockerfile
+    profiles: ["lab"]
+    depends_on:
+      - server
+    volumes:
+      - ./lab/samples:/logs:ro
+    command: ["replay", "--log-dir", "/logs", "--api", "http://server:5170", "--token", "${ASTRA_SENSOR_TOKEN:-dev-sensor-token-change-me}", "--name", "sensor-lab-01"]
+
 volumes:
   pgdata:
   redisdata:

@@ -7,19 +7,15 @@ open Astra.Client.Components
 
 [<ReactComponent>]
 let Dashboard () =
-    let (summary, setSummary) = React.useState<Result<DashboardSummary, string> option> None
-    let (sensors, setSensors) = React.useState<Result<SensorHealth list, string> option> None
-    let (detections, setDetections) = React.useState<Result<DetectionPage, string> option> None
-    let (entities, setEntities) = React.useState<Result<EntityQueuePage, string> option> None
-
-    React.useEffectOnce(fun () ->
-        Api.getDashboard () |> Promise.map (Some >> setSummary) |> Promise.start
-        Api.getSensors () |> Promise.map (Some >> setSensors) |> Promise.start
-        Api.getDetections 1 |> Promise.map (Some >> setDetections) |> Promise.start
-        Api.getEntityQueue 1 |> Promise.map (Some >> setEntities) |> Promise.start)
+    // Auto-refreshing live data (10s) so real sensor telemetry streams in.
+    let summary, updatedAt, refreshSummary = useLiveData Api.getDashboard 10000
+    let sensors, _, refreshSensors = useLiveData Api.getSensors 10000
+    let detections, _, refreshDetections = useLiveData (fun () -> Api.getDetections 1) 10000
+    let entities, _, refreshEntities = useLiveData (fun () -> Api.getEntityQueue 1) 10000
+    let refreshAll () = refreshSummary (); refreshSensors (); refreshDetections (); refreshEntities ()
 
     Html.div [
-        pageHeader "Executive Dashboard" "Environment-wide detection, risk and sensor posture"
+        pageHeaderLive "Executive Dashboard" "Environment-wide detection, risk and sensor posture" updatedAt refreshAll
 
         // ---- stat tiles ----
         remote summary "dashboard" (fun s ->

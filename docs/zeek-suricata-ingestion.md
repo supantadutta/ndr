@@ -1,7 +1,26 @@
 # Astra NDR — Zeek & Suricata Ingestion
 
-Astra treats Zeek and Suricata as first-class sensor sources. Phase 1 defines the
-normalized target model and the ingest contract; Phase 2 ships the parsers.
+Astra treats Zeek and Suricata as first-class sensor sources. **The parsers ship in
+`src/Astra.Sensor`** (Phase 2): a real F# sensor agent parses Zeek TSV logs and Suricata
+EVE JSON / fast.log, normalizes them, and posts to the central brain.
+
+## Running the sensor agent
+
+```bash
+# Replay a directory of Zeek/Suricata logs (offline / PCAP output / lab).
+# Timestamps are rebased to "now" by default so old captures still fire
+# real-time detections; pass --preserve-time to keep original times.
+dotnet run --project src/Astra.Sensor -- replay \
+    --log-dir /var/log/zeek/current --api http://brain:5170 --token "$ASTRA_SENSOR_TOKEN"
+
+# Live: tail Zeek logs + a Suricata eve.json as they grow.
+dotnet run --project src/Astra.Sensor -- live \
+    --log-dir /opt/zeek/logs/current --eve /var/log/suricata/eve.json \
+    --api http://brain:5170 --token "$ASTRA_SENSOR_TOKEN"
+```
+
+The agent buffers locally and retries if the brain is briefly unreachable, and sends
+periodic heartbeats (auto-registering the sensor on first contact).
 
 ## Mapping to the normalized schema
 

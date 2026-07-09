@@ -550,6 +550,72 @@ type RareDestinationExfilRule() =
                           SeverityOverride = None }))
 
 // ---------------------------------------------------------------------------
+// Rule: high-severity IDS signature alert  [Signature / IDS correlation]
+// ---------------------------------------------------------------------------
+
+type HighSeverityIdsAlertRule() =
+    let def =
+        mkRuleDef "signature.high_severity_ids_alert"
+            "High-Severity IDS Signature Match"
+            "A Suricata/IDS signature of high severity fired against an internal host. Signature matches are corroborating evidence and are correlated with behavioral detections on the same entity."
+            DetectionEngineKind.Signature DetectionCategory.MalwareBehavior
+            MitreTactic.CommandAndControl "T1071" "Application Layer Protocol"
+            KillChainStage.Exploitation Severity.High 65
+            [ "max_ids_severity", 2.0 ]   // Suricata severity 1 (high) or 2 (medium+)
+
+    interface IDetectionRule with
+        member _.Definition = def
+        member _.Evaluate input =
+            let maxSev = threshold def "max_ids_severity" 2.0 |> int
+            input.Window
+            |> List.choose (fun e ->
+                match e.Payload with
+                | EventPayload.IdsAlert a when a.IdsSeverity <= maxSev -> Some (e, a)
+                | _ -> None)
+            // one detection per (affected endpoint, signature)
+            |> List.groupBy (fun (e, a) -> (e.DestinationIp, a.SignatureId))
+            |> List.choose (fun ((affectedIp, _sig), pairs) ->
+                let (firstEvt, alert) = List.head pairs
+                // affected entity is the internal endpoint (prefer destination if internal, else source)
+                let affectedIpResolved =
+                    if firstEvt.Direction = TrafficDirection.ExternalToInternal then affectedIp else firstEvt.SourceIp
+                let affected = input.Store.ResolveEntity(EntityType.Host, affectedIpResolved, affectedIpResolved, input.Now)
+                if input.Store.HasOpenDetection((RuleId "signature.high_severity_ids_alert"), affected.EntityId) then None
+                else
+                let evts = pairs |> List.map fst
+                let peer = if affectedIpResolved = firstEvt.SourceIp then firstEvt.DestinationIp else firstEvt.SourceIp
+                let sev = if alert.IdsSeverity <= 1 then Severity.Critical else Severity.High
+                Some (materialize def input.Now
+                    { Title = sprintf "IDS signature: %s on %s" alert.SignatureName affected.DisplayName
+                      Summary = sprintf "Signature '%s' (sid %d, severity %d) fired %d time(s) involving %s and peer %s." alert.SignatureName alert.SignatureId alert.IdsSeverity evts.Length affected.DisplayName peer
+                      AffectedEntity = affected
+                      SourceEntity = Some affected
+                      TargetEntity = None
+                      Evidence =
+                        [ evidence "signature" (sprintf "%s (sid %d rev %d)" alert.SignatureName alert.SignatureId alert.SignatureRevision) evts
+                          evidence "ids category" alert.IdsCategory evts
+                          evidence "ids severity" (string alert.IdsSeverity) evts
+                          evidence "match count" (string evts.Length) evts
+                          evidence "peer" peer [] ]
+                      Events = evts
+                      BaselineComparisons = []
+                      WhySuspicious = "A curated IDS signature encodes known-bad behavior. A high-severity match is strong corroborating evidence, especially when the same host shows behavioral anomalies."
+                      FalsePositives =
+                        [ "Outdated or overly-broad signatures"
+                          "Security scanners / research traffic that trips content rules" ]
+                      InvestigationSteps =
+                        [ "Review the exact signature and its reference/CVE"
+                          "Correlate with behavioral detections on the same host"
+                          "Inspect the flow/payload reference if packet capture is retained" ]
+                      ResponseActions =
+                        [ "Block the external peer (requires approval)"; "Isolate host (simulation) if corroborated" ]
+                      TuningFields =
+                        [ "signature_id", string alert.SignatureId; "affected_ip", affectedIpResolved
+                          "detection_type", "signature.high_severity_ids_alert" ]
+                      ConfidenceOverride = None
+                      SeverityOverride = Some sev }))
+
+// ---------------------------------------------------------------------------
 // Engine
 // ---------------------------------------------------------------------------
 
@@ -560,7 +626,8 @@ type DetectionEngine(store: AstraStore) =
           BeaconingRule()
           BruteForceAuthRule()
           AdminShareLateralRule()
-          RareDestinationExfilRule() ]
+          RareDestinationExfilRule()
+          HighSeverityIdsAlertRule() ]
 
     member _.Rules = rules
     member _.RuleDefinitions = rules |> List.map (fun r -> r.Definition)

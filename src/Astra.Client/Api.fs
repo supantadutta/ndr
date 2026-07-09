@@ -171,6 +171,25 @@ module private Decode =
               SuricataRunning = get.Required.Field "suricataRunning" Decode.bool
               Errors = get.Required.Field "errors" (Decode.list Decode.string) })
 
+    let assistantStatement : Decoder<AssistantStatement> =
+        Decode.object (fun get ->
+            { Text = get.Required.Field "text" Decode.string
+              Citations = get.Required.Field "citations" (Decode.list Decode.string) })
+
+    let assistantSummary : Decoder<AssistantSummary> =
+        Decode.object (fun get ->
+            { SubjectId = get.Required.Field "subjectId" Decode.string
+              SubjectName = get.Required.Field "subjectName" Decode.string
+              Headline = get.Required.Field "headline" Decode.string
+              Facts = get.Required.Field "facts" (Decode.list assistantStatement)
+              Inferences = get.Required.Field "inferences" (Decode.list assistantStatement)
+              Recommendations = get.Required.Field "recommendations" (Decode.list assistantStatement)
+              MitreTechniques = get.Required.Field "mitreTechniques" (Decode.list Decode.string)
+              Confidence = get.Required.Field "confidence" Decode.int
+              Uncertainty = get.Required.Field "uncertainty" Decode.string
+              Provider = get.Required.Field "provider" Decode.string
+              GeneratedAt = get.Required.Field "generatedAt" Decode.string })
+
     let incidentItem : Decoder<IncidentListItem> =
         Decode.object (fun get ->
             { IncidentId = get.Required.Field "incidentId" Decode.string
@@ -205,3 +224,4 @@ let getDetections (page: int) = getJson (sprintf "/api/detections?page=%d&pageSi
 let getDetectionDetail (id: string) = getJson (sprintf "/api/detections/%s" id) Decode.detectionDetail
 let getIncidents () = getJson "/api/incidents" (Decode.list Decode.incidentItem)
 let getSensors () = getJson "/api/sensors/health" (Decode.list Decode.sensorHealth)
+let getAssistantEntity (id: string) = getJson (sprintf "/api/assistant/entity/%s" id) Decode.assistantSummary

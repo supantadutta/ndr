@@ -80,6 +80,24 @@ module Mapping =
                   Result = f fields "result" |> Option.defaultValue "unknown"
                   FailureReason = f fields "failure_reason"
                   IsPrivileged = boolOf fields "is_privileged"; LogonType = f fields "logon_type" }
+        | EventCategory.IdsSignatureAlert | EventCategory.IdsProtocolAlert | EventCategory.IdsDecoderEvent ->
+            let intOf key dv = f fields key |> Option.bind (fun v -> match System.Int64.TryParse v with | true, n -> Some n | _ -> None) |> Option.defaultValue dv
+            EventPayload.IdsAlert
+                { SignatureId = intOf "signature_id" 0L
+                  SignatureRevision = intOf "signature_rev" 0L |> int
+                  SignatureName = f fields "signature" |> Option.defaultValue "unknown"
+                  IdsCategory = f fields "ids_category" |> Option.defaultValue ""
+                  IdsSeverity = intOf "ids_severity" 3L |> int
+                  RuleSource = f fields "rule_source"
+                  PayloadSnippet = f fields "payload" }
+        | EventCategory.ThreatIntelMatch ->
+            let intOf key dv = f fields key |> Option.bind (fun v -> match System.Int32.TryParse v with | true, n -> Some n | _ -> None) |> Option.defaultValue dv
+            EventPayload.ThreatIntelMatch
+                { Indicator = f fields "indicator" |> Option.defaultValue ""
+                  IndicatorType = f fields "indicator_type" |> Option.defaultValue "ip"
+                  FeedName = f fields "feed" |> Option.defaultValue "unknown"
+                  ActorLabel = f fields "actor"; ToolLabel = f fields "tool"; CampaignLabel = f fields "campaign"
+                  IntelConfidence = intOf "intel_confidence" 50 }
         | _ -> EventPayload.Connection
 
     let private parseDate (s: string) =

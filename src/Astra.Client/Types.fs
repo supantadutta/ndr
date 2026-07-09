@@ -142,6 +142,21 @@ type IncidentListItem =
       DetectionCount: int
       CreatedAt: string }
 
+type AssistantStatement = { Text: string; Citations: string list }
+
+type AssistantSummary =
+    { SubjectId: string
+      SubjectName: string
+      Headline: string
+      Facts: AssistantStatement list
+      Inferences: AssistantStatement list
+      Recommendations: AssistantStatement list
+      MitreTechniques: string list
+      Confidence: int
+      Uncertainty: string
+      Provider: string
+      GeneratedAt: string }
+
 /// Application routes (hash-based).
 type Route =
     | Dashboard

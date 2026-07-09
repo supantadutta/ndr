@@ -10,6 +10,7 @@
     <Compile Include="DetectionEngine.fs" />
     <Compile Include="ScoringEngine.fs" />
     <Compile Include="Correlation.fs" />
+    <Compile Include="Assistant.fs" />
     <Compile Include="SeedData.fs" />
     <Compile Include="Ingestion.fs" />
     <Compile Include="Mappers.fs" />

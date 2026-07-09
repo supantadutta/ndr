@@ -241,6 +241,31 @@ type HeartbeatResponse =
       ConfigVersion: int }
 
 // ---------------------------------------------------------------------------
+// AI SOC investigation assistant (read-only, evidence-bound)
+// ---------------------------------------------------------------------------
+
+/// A single evidence-bound statement with its citations (detection/event ids).
+type AssistantStatementDto =
+    { Text: string
+      Citations: string list }
+
+/// Investigation summary for an entity. Fact / inference / recommendation are
+/// deliberately separated (see docs/ai-assistant-security.md). `Provider`
+/// names what produced it ("deterministic" or a configured model).
+type AssistantSummaryDto =
+    { SubjectId: string
+      SubjectName: string
+      Headline: string
+      Facts: AssistantStatementDto list
+      Inferences: AssistantStatementDto list
+      Recommendations: AssistantStatementDto list
+      MitreTechniques: string list
+      Confidence: int
+      Uncertainty: string
+      Provider: string
+      GeneratedAt: string }
+
+// ---------------------------------------------------------------------------
 // Route table (single source of truth for URLs)
 // ---------------------------------------------------------------------------
 
@@ -255,3 +280,4 @@ module Routes =
     let sensorsHealth = "/api/sensors/health"
     let ingestEvents = "/api/ingest/events"
     let ingestHeartbeat = "/api/ingest/heartbeat"
+    let assistantEntity (id: string) = sprintf "/api/assistant/entity/%s" id

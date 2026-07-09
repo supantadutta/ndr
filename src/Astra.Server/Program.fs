@@ -65,8 +65,13 @@ let main args =
         logger.LogInformation("Seed complete: {Events} events, {Detections} detections, {Incidents} incidents",
                               events.Length, detections.Length, incidents.Length)
 
+    let analysisProvider = Assistant.createProvider ()
+    match Assistant.loadLlmConfig () with
+    | Some cfg -> logger.LogInformation("LLM analysis endpoint configured ({Model}); provider stays evidence-bound", cfg.Model)
+    | None -> logger.LogInformation("AI assistant using deterministic evidence-bound provider (set ASTRA_LLM_ENDPOINT to attach a model)")
+
     app.UseCors("console") |> ignore
-    app.UseGiraffe(HttpHandlers.webApp store pipeline config.SensorApiToken)
+    app.UseGiraffe(HttpHandlers.webApp store pipeline analysisProvider config.SensorApiToken)
 
     logger.LogInformation("Astra NDR central brain listening")
     app.Run()

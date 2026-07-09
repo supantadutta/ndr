@@ -26,5 +26,6 @@ Thumbs.db
 
 ## Logs and data
 *.log
+!lab/samples/*.log          # keep sample Zeek fixtures for the lab
 data/
 pgdata/

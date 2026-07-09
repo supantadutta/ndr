@@ -6,6 +6,51 @@ open Astra.Client.Types
 open Astra.Client.Components
 
 [<ReactComponent>]
+let private AssistantPanel (entityId: string) =
+    let (summary, setSummary) = React.useState<Result<AssistantSummary, string> option> None
+    React.useEffect((fun () -> Api.getAssistantEntity entityId |> Promise.map (Some >> setSummary) |> Promise.start), [| box entityId |])
+
+    let statements (title: string) (color: string) (items: AssistantStatement list) =
+        if items.IsEmpty then Html.none
+        else
+        Html.div [
+            prop.style [ style.marginBottom 12 ]
+            prop.children [
+                Html.div [ prop.style [ style.fontSize 11; style.fontWeight 600; style.textTransform.uppercase; style.color color; style.marginBottom 6 ]; prop.text title ]
+                Html.div [
+                    prop.style [ style.display.flex; style.flexDirection.column; style.gap 6 ]
+                    prop.children [
+                        for s in items ->
+                            Html.div [
+                                prop.style [ style.fontSize 13; style.color Theme.textPrimary; style.borderLeft (2, borderStyle.solid, color); style.paddingLeft 10 ]
+                                prop.children [
+                                    Html.span [ prop.text s.Text ]
+                                    if not s.Citations.IsEmpty then
+                                        Html.span [ prop.style [ style.fontSize 11; style.color Theme.textMuted; style.marginLeft 6 ]; prop.text (sprintf "[%d cited]" s.Citations.Length) ]
+                                ]
+                            ]
+                    ]
+                ]
+            ]
+        ]
+
+    panelTitled "AI investigation summary" [
+        remote summary "assistant" (fun a ->
+            Html.div [
+                prop.children [
+                    Html.div [ prop.style [ style.fontSize 14; style.fontWeight 600; style.color Theme.textPrimary; style.marginBottom 4 ]; prop.text a.Headline ]
+                    Html.div [ prop.style [ style.fontSize 11; style.color Theme.textMuted; style.marginBottom 12 ]; prop.text (sprintf "provider: %s · confidence %d%% · read-only, evidence-bound" a.Provider a.Confidence) ]
+                    statements "Facts (observed)" "#5bc0be" a.Facts
+                    statements "Inferences" "#ffd166" a.Inferences
+                    statements "Recommendations" "#4c8dff" a.Recommendations
+                    if not a.MitreTechniques.IsEmpty then
+                        Html.div [ prop.style [ style.fontSize 12; style.color Theme.textMuted; style.marginTop 8 ]; prop.text (sprintf "ATT&CK: %s" (String.concat ", " a.MitreTechniques)) ]
+                    Html.div [ prop.style [ style.fontSize 12; style.color Theme.textMuted; style.marginTop 8; style.fontStyle.italic ]; prop.text (sprintf "Uncertainty: %s" a.Uncertainty) ]
+                ]
+            ])
+    ]
+
+[<ReactComponent>]
 let EntityDetail (entityId: string) =
     let (detail, setDetail) = React.useState<Result<EntityDetail, string> option> None
     React.useEffect((fun () -> Api.getEntityDetail entityId |> Promise.map (Some >> setDetail) |> Promise.start), [| box entityId |])
@@ -76,6 +121,12 @@ let EntityDetail (entityId: string) =
                                 ]
                             ]
                         ]
+                    ]
+
+                    // AI investigation summary (full width)
+                    Html.div [
+                        prop.style [ style.marginTop 14 ]
+                        prop.children [ AssistantPanel e.EntityId ]
                     ]
                 ]
             ])

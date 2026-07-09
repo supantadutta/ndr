@@ -7,11 +7,9 @@ open Astra.Client.Components
 
 [<ReactComponent>]
 let Detections () =
-    let (page, setPage) = React.useState<Result<DetectionPage, string> option> None
+    let page, updatedAt, refresh = useLiveData (fun () -> Api.getDetections 1) 10000
     let (selected, setSelected) = React.useState<Result<DetectionDetail, string> option> None
     let (selectedId, setSelectedId) = React.useState<string option> None
-
-    React.useEffectOnce(fun () -> Api.getDetections 1 |> Promise.map (Some >> setPage) |> Promise.start)
 
     let openDetail id =
         setSelectedId (Some id)
@@ -19,7 +17,7 @@ let Detections () =
         Api.getDetectionDetail id |> Promise.map (Some >> setSelected) |> Promise.start
 
     Html.div [
-        pageHeader "Detection Center" "Triage queue ordered by threat score"
+        pageHeaderLive "Detection Center" "Triage queue ordered by threat score" updatedAt refresh
         Html.div [
             prop.style [ style.display.grid; style.gridTemplateColumns [ length.fr 3; length.fr 2 ]; style.gap 14 ]
             prop.children [
