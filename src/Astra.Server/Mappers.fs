@@ -268,3 +268,53 @@ let incidentListItem (store: AstraStore) (i: Incident) : IncidentListItemDto =
       AffectedEntityCount = i.AffectedEntities.Length
       DetectionCount = i.RelatedDetections.Length
       CreatedAt = iso i.CreatedAt }
+
+// ---------------------------------------------------------------- graph (P4)
+let graphNodeDto (n: GraphNode) : GraphNodeDto =
+    { NodeId = n.NodeId
+      Kind = (match n.Kind with
+              | GraphNodeKind.Host -> "host" | GraphNodeKind.Account -> "account"
+              | GraphNodeKind.Domain -> "domain" | GraphNodeKind.Ip -> "ip"
+              | GraphNodeKind.Sensor -> "sensor" | GraphNodeKind.Detection -> "detection"
+              | GraphNodeKind.Incident -> "incident" | GraphNodeKind.Service -> "service"
+              | GraphNodeKind.CloudResource -> "cloud_resource" | GraphNodeKind.SaasObject -> "saas_object"
+              | GraphNodeKind.ThreatIndicator -> "threat_indicator")
+      Label = n.Label
+      EntityId = n.EntityId |> Option.map (fun (EntityId g) -> string g)
+      Risk = n.Risk
+      Tags = n.Tags }
+
+let graphEdgeDto (e: GraphEdge) : GraphEdgeDto =
+    { EdgeId = e.EdgeId; FromNode = e.FromNode; ToNode = e.ToNode
+      Kind = (string e.Kind); Label = e.Label; Weight = e.Weight }
+
+let investigationGraphDto (g: InvestigationGraph) : InvestigationGraphDto =
+    { Nodes = g.Nodes |> List.map graphNodeDto
+      Edges = g.Edges |> List.map graphEdgeDto }
+
+// ----------------------------------------------------------------- hunt (P4)
+let huntRowDto (r: Astra.Server.Hunt.HuntRow) : HuntRowDto =
+    { Timestamp = iso r.Timestamp; Category = r.Category; Protocol = r.Protocol; App = r.App
+      SourceIp = r.SourceIp; DestinationIp = r.DestinationIp; DestinationPort = r.DestinationPort
+      BytesOut = r.BytesOut; BytesIn = r.BytesIn; Detail = r.Detail }
+
+let huntBucketDto (b: Astra.Server.Hunt.HuntAggBucket) : HuntBucketDto =
+    { Key = b.Key; Count = b.Count; Bytes = b.Bytes }
+
+let huntResultDto (r: Astra.Server.Hunt.HuntResult) : HuntResultDto =
+    { Total = r.Total
+      Rows = r.Rows |> List.map huntRowDto
+      TopDestinations = r.TopDestinations |> List.map huntBucketDto
+      TopSources = r.TopSources |> List.map huntBucketDto }
+
+let huntQueryOfDto (q: HuntQueryDto) : Astra.Server.Hunt.HuntQuery =
+    { Predicates = q.Predicates |> List.map (fun p -> { Astra.Server.Hunt.Field = p.Field; Astra.Server.Hunt.Op = p.Op; Astra.Server.Hunt.Value = p.Value })
+      WindowMinutes = q.WindowMinutes
+      Limit = q.Limit }
+
+let huntQueryDto (q: Astra.Server.Hunt.HuntQuery) : HuntQueryDto =
+    { Predicates = q.Predicates |> List.map (fun p -> { Field = p.Field; Op = p.Op; Value = p.Value })
+      WindowMinutes = q.WindowMinutes; Limit = q.Limit }
+
+let huntTemplateDto (t: Astra.Server.Hunt.HuntTemplate) : HuntTemplateDto =
+    { Id = t.Id; Name = t.Name; Description = t.Description; Query = huntQueryDto t.Query }

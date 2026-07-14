@@ -17,6 +17,8 @@
     <Compile Include="Pages/Incidents.fs" />
     <Compile Include="Pages/Sensors.fs" />
     <Compile Include="Pages/DetectionEngineering.fs" />
+    <Compile Include="Pages/AttackGraph.fs" />
+    <Compile Include="Pages/Hunting.fs" />
     <Compile Include="Pages/Admin.fs" />
     <Compile Include="Pages/Placeholder.fs" />
     <Compile Include="App.fs" />

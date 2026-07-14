@@ -288,6 +288,42 @@ let heartbeatHandler (store: AstraStore) (token: string) : HttpHandler =
                 return! badRequest (sprintf "invalid heartbeat: %s" ex.Message) next ctx
         }
 
+// --------------------------------------------------------------- graph (P4)
+let private graphWindow (store: AstraStore) = store.RecentEvents(TimeSpan.FromHours 6.0)
+
+let graphEntityHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        match Guid.TryParse id with
+        | true, g ->
+            let graph = Astra.Server.Graph.entityGraph store (graphWindow store) (EntityId g)
+            json (Astra.Server.Mappers.investigationGraphDto graph) next ctx
+        | _ -> badRequest "invalid entity id" next ctx
+
+let graphIncidentHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        match Guid.TryParse id with
+        | true, g ->
+            let graph = Astra.Server.Graph.incidentGraph store (graphWindow store) (IncidentId g)
+            json (Astra.Server.Mappers.investigationGraphDto graph) next ctx
+        | _ -> badRequest "invalid incident id" next ctx
+
+// ---------------------------------------------------------------- hunt (P4)
+let huntTemplatesHandler : HttpHandler =
+    fun next ctx ->
+        json (Astra.Server.Hunt.templates |> List.map Astra.Server.Mappers.huntTemplateDto) next ctx
+
+let huntSearchHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let dto = Astra.Server.Json.deserialize<HuntQueryDto> body
+                let result = Astra.Server.Hunt.run store (Astra.Server.Mappers.huntQueryOfDto dto)
+                return! json (Astra.Server.Mappers.huntResultDto result) next ctx
+            with ex ->
+                return! badRequest (sprintf "invalid hunt query: %s" ex.Message) next ctx
+        }
+
 // ------------------------------------------------------------------ routing
 let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Server.Assistant.IAnalysisProvider) (token: string) : HttpHandler =
     choose [
@@ -305,6 +341,9 @@ let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Se
             route Routes.triageFilters >=> triageFiltersHandler store
             route Routes.allowlists >=> allowlistsHandler store
             route Routes.auditLog >=> auditHandler store
+            route Routes.huntTemplates >=> huntTemplatesHandler
+            routef "/api/graph/entity/%s" (graphEntityHandler store)
+            routef "/api/graph/incident/%s" (graphIncidentHandler store)
         ]
         POST >=> choose [
             route Routes.ingestEvents >=> ingestEventsHandler pipeline token
@@ -313,6 +352,7 @@ let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Se
             routef "/api/rules/%s" (updateRuleHandler store)
             route Routes.triageFilters >=> createTriageFilterHandler store
             route Routes.allowlists >=> createAllowlistHandler store
+            route Routes.huntSearch >=> huntSearchHandler store
         ]
         setStatusCode 404 >=> json { Error = "not_found"; Detail = "no such route" }
     ]

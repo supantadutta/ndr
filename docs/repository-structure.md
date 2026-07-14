@@ -28,6 +28,9 @@ astra-ndr/
 │   │   ├── DetectionEngine.fs   IDetectionRule + 6 starter rules + engine
 │   │   ├── ScoringEngine.fs     explainable entity scoring
 │   │   ├── Correlation.fs       detections → incidents, attack-profile classifier
+│   │   ├── Assistant.fs         read-only evidence-bound AI provider (pluggable LLM)
+│   │   ├── Graph.fs             investigation/attack graph engine (entity + incident)
+│   │   ├── Hunt.fs              threat-hunting predicate engine + templates
 │   │   ├── SeedData.fs          synthetic demo scenarios
 │   │   ├── Ingestion.fs         DTO mapping + async pipeline + background worker
 │   │   ├── Mappers.fs           domain → DTO projections

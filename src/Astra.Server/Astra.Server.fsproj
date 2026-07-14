@@ -12,6 +12,8 @@
     <Compile Include="ScoringEngine.fs" />
     <Compile Include="Correlation.fs" />
     <Compile Include="Assistant.fs" />
+    <Compile Include="Graph.fs" />
+    <Compile Include="Hunt.fs" />
     <Compile Include="SeedData.fs" />
     <Compile Include="Ingestion.fs" />
     <Compile Include="Mappers.fs" />

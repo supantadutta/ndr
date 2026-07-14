@@ -1,6 +1,12 @@
 # Astra NDR — Attack Graph & Investigation
 
-Types are defined now in [`src/Astra.Shared/Incidents.fs`](../src/Astra.Shared/Incidents.fs)
+> **Status: implemented (Phase 4).** The graph engine (`src/Astra.Server/Graph.fs`) builds
+> an `InvestigationGraph` around an entity or incident and is served at
+> `GET /api/graph/entity/{id}` and `GET /api/graph/incident/{id}`; the console renders it as
+> a radial SVG graph on the **Attack Graph** page. Incident graphs add shared-infrastructure
+> edges (external destinations contacted by ≥2 involved hosts) for blast-radius analysis.
+
+Types are defined in [`src/Astra.Shared/Incidents.fs`](../src/Astra.Shared/Incidents.fs)
 (`InvestigationGraph`, `GraphNode`, `GraphEdge`); the graph engine + UI land in Phase 4.
 
 ## Node & edge model

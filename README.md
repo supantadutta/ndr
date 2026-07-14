@@ -131,8 +131,8 @@ correlated incidents. See [`docs/lab-demo.md`](docs/lab-demo.md).
 | **1 — done** | Full-stack skeleton, schema, ingestion + detection + scoring + correlation, first dashboards, Docker Compose, lab |
 | **2 — done** | Real sensor agent (Zeek + Suricata EVE/fast-log parsers), normalization from raw logs, PCAP/log replay, IDS signature detection + correlation, live auto-refresh UI, AI investigation assistant (pluggable), test suite. *(ClickHouse telemetry persistence remains for Phase 2.5.)* |
 | **3 — done** | Behavioral baseline engine (EMA/z-score/MAD/percentile/rarity/time-of-day), 12 detection rules across all families, tunable rule config (enable/disable + thresholds, live), triage workflows with suppression + audit trail, triage filters & allowlists, Detection Engineering + Admin/Audit UI. 37-test suite. |
-| **4** | Attack graph, richer incident correlation, threat-hunting search, saved searches, custom detections |
-| **5** | Threat intelligence, response center + connectors, SIEM/webhook/Kafka exports, AI investigation assistant, reporting |
+| **4 — done** | Investigation/attack graph engine (radial graph around an entity or incident, shared-infrastructure blast-radius edges), threat-hunting metadata search with typed predicates + templates + top-talker aggregations, Attack Graph & Threat Hunting UI pages. 42-test suite. *(Saved searches / convert-to-detection persist in Phase 4.5.)* |
+| **5** | Threat intelligence, response center + connectors, SIEM/webhook/Kafka exports, reporting |
 
 Details in [`docs/deployment-roadmap.md`](docs/deployment-roadmap.md).
 

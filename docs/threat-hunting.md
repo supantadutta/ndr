@@ -1,6 +1,13 @@
 # Astra NDR — Threat Hunting
 
-Historical metadata search and hunting land in Phase 4, over the normalized-event store
+> **Status: implemented (Phase 4).** The hunt engine (`src/Astra.Server/Hunt.fs`) evaluates
+> typed field predicates (`eq | contains | gt | lt`) over the normalized-event window and
+> returns matching rows plus top-talker aggregations, served at `POST /api/hunt/search` with
+> canned templates at `GET /api/hunt/templates`. The console's **Threat Hunting** page has a
+> field/op/value query builder, template buttons, a results table, and top-talker charts.
+> The predicate model maps directly onto SQL/ClickHouse when the telemetry tier lands.
+
+Historical metadata search and hunting run over the normalized-event store
 (`normalized_events` in Postgres for the working window; ClickHouse for volume). Schema
 support (`saved_searches`, `custom_models`) is present in migration 0001.
 

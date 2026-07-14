@@ -234,6 +234,73 @@ module private Decode =
               DetectionCount = get.Required.Field "detectionCount" Decode.int
               CreatedAt = get.Required.Field "createdAt" Decode.string })
 
+    let graphNode : Decoder<GraphNode> =
+        Decode.object (fun get ->
+            { NodeId = get.Required.Field "nodeId" Decode.string
+              Kind = get.Required.Field "kind" Decode.string
+              Label = get.Required.Field "label" Decode.string
+              EntityId = get.Optional.Field "entityId" Decode.string
+              Risk = get.Required.Field "risk" Decode.int
+              Tags = get.Required.Field "tags" (Decode.list Decode.string) })
+
+    let graphEdge : Decoder<GraphEdge> =
+        Decode.object (fun get ->
+            { EdgeId = get.Required.Field "edgeId" Decode.string
+              FromNode = get.Required.Field "fromNode" Decode.string
+              ToNode = get.Required.Field "toNode" Decode.string
+              Kind = get.Required.Field "kind" Decode.string
+              Label = get.Required.Field "label" Decode.string
+              Weight = get.Required.Field "weight" Decode.float })
+
+    let graph : Decoder<InvestigationGraph> =
+        Decode.object (fun get ->
+            { Nodes = get.Required.Field "nodes" (Decode.list graphNode)
+              Edges = get.Required.Field "edges" (Decode.list graphEdge) })
+
+    let huntRow : Decoder<HuntRow> =
+        Decode.object (fun get ->
+            { Timestamp = get.Required.Field "timestamp" Decode.string
+              Category = get.Required.Field "category" Decode.string
+              Protocol = get.Required.Field "protocol" Decode.string
+              App = get.Required.Field "app" Decode.string
+              SourceIp = get.Required.Field "sourceIp" Decode.string
+              DestinationIp = get.Required.Field "destinationIp" Decode.string
+              DestinationPort = get.Optional.Field "destinationPort" Decode.int
+              BytesOut = get.Required.Field "bytesOut" Decode.int64
+              BytesIn = get.Required.Field "bytesIn" Decode.int64
+              Detail = get.Required.Field "detail" Decode.string })
+
+    let huntBucket : Decoder<HuntBucket> =
+        Decode.object (fun get ->
+            { Key = get.Required.Field "key" Decode.string
+              Count = get.Required.Field "count" Decode.int
+              Bytes = get.Required.Field "bytes" Decode.int64 })
+
+    let huntResult : Decoder<HuntResult> =
+        Decode.object (fun get ->
+            { Total = get.Required.Field "total" Decode.int
+              Rows = get.Required.Field "rows" (Decode.list huntRow)
+              TopDestinations = get.Required.Field "topDestinations" (Decode.list huntBucket)
+              TopSources = get.Required.Field "topSources" (Decode.list huntBucket) })
+
+    let huntQuery : Decoder<HuntQuery> =
+        Decode.object (fun get ->
+            { Predicates =
+                get.Required.Field "predicates"
+                    (Decode.list (Decode.object (fun g ->
+                        { Field = g.Required.Field "field" Decode.string
+                          Op = g.Required.Field "op" Decode.string
+                          Value = g.Required.Field "value" Decode.string })))
+              WindowMinutes = get.Required.Field "windowMinutes" Decode.int
+              Limit = get.Required.Field "limit" Decode.int })
+
+    let huntTemplate : Decoder<HuntTemplate> =
+        Decode.object (fun get ->
+            { Id = get.Required.Field "id" Decode.string
+              Name = get.Required.Field "name" Decode.string
+              Description = get.Required.Field "description" Decode.string
+              Query = get.Required.Field "query" huntQuery })
+
 // -------------------------------------------------------------------- fetch
 let private getJson<'T> (path: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
     promise {
@@ -258,6 +325,9 @@ let getSensors () = getJson "/api/sensors/health" (Decode.list Decode.sensorHeal
 let getAssistantEntity (id: string) = getJson (sprintf "/api/assistant/entity/%s" id) Decode.assistantSummary
 let getRules () = getJson "/api/rules" (Decode.list Decode.detectionRule)
 let getAudit () = getJson "/api/audit" (Decode.list Decode.auditEntry)
+let getGraphEntity (id: string) = getJson (sprintf "/api/graph/entity/%s" id) Decode.graph
+let getGraphIncident (id: string) = getJson (sprintf "/api/graph/incident/%s" id) Decode.graph
+let getHuntTemplates () = getJson "/api/hunt/templates" (Decode.list Decode.huntTemplate)
 
 /// POST a JSON body (already-serialized string) and decode the response.
 let private postJson<'T> (path: string) (body: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
@@ -292,3 +362,13 @@ let updateRule (id: string) (enabled: bool option) (thresholds: (string * float)
                                 Encode.object [ "key", Encode.string k; "value", Encode.float v ])) ]
         |> Encode.toString 0
     postJson (sprintf "/api/rules/%s" id) body Decode.detectionRule
+
+let runHunt (query: HuntQuery) =
+    let body =
+        Encode.object
+            [ "predicates", Encode.list (query.Predicates |> List.map (fun p ->
+                Encode.object [ "field", Encode.string p.Field; "op", Encode.string p.Op; "value", Encode.string p.Value ]))
+              "windowMinutes", Encode.int query.WindowMinutes
+              "limit", Encode.int query.Limit ]
+        |> Encode.toString 0
+    postJson "/api/hunt/search" body Decode.huntResult

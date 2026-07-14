@@ -61,14 +61,8 @@ let private content (route: Route) =
     | DetectionsRoute -> Pages.Detections.Detections ()
     | IncidentsRoute -> Pages.Incidents.Incidents ()
     | Sensors -> Pages.Sensors.Sensors ()
-    | AttackGraph ->
-        Pages.Placeholder.Placeholder "Attack Graph" "Phase 4"
-            [ "Radial attack graph and attack-flow tree"; "Blast-radius and C2 infrastructure views"
-              "Time / protocol / MITRE / risk filtering"; "Focused view and graph export" ]
-    | Hunting ->
-        Pages.Placeholder.Placeholder "Threat Hunting" "Phase 4"
-            [ "Metadata query builder over normalized events"; "Saved searches and scheduled hunts"
-              "DNS / TLS / SMB / RDP analytics"; "Convert a saved search into a custom detection" ]
+    | AttackGraph -> Pages.AttackGraph.AttackGraph ()
+    | Hunting -> Pages.Hunting.Hunting ()
     | DetectionEngineering -> Pages.DetectionEngineering.DetectionEngineering ()
     | ThreatIntel ->
         Pages.Placeholder.Placeholder "Threat Intelligence" "Phase 5"

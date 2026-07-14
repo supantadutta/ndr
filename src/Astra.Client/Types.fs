@@ -184,6 +184,30 @@ type AssistantSummary =
       GeneratedAt: string }
 
 /// Application routes (hash-based).
+// ---- Phase 4: investigation graph + threat hunting ----
+type GraphNode =
+    { NodeId: string; Kind: string; Label: string; EntityId: string option; Risk: int; Tags: string list }
+
+type GraphEdge =
+    { EdgeId: string; FromNode: string; ToNode: string; Kind: string; Label: string; Weight: float }
+
+type InvestigationGraph = { Nodes: GraphNode list; Edges: GraphEdge list }
+
+type HuntPredicate = { Field: string; Op: string; Value: string }
+type HuntQuery = { Predicates: HuntPredicate list; WindowMinutes: int; Limit: int }
+
+type HuntRow =
+    { Timestamp: string; Category: string; Protocol: string; App: string
+      SourceIp: string; DestinationIp: string; DestinationPort: int option
+      BytesOut: int64; BytesIn: int64; Detail: string }
+
+type HuntBucket = { Key: string; Count: int; Bytes: int64 }
+
+type HuntResult =
+    { Total: int; Rows: HuntRow list; TopDestinations: HuntBucket list; TopSources: HuntBucket list }
+
+type HuntTemplate = { Id: string; Name: string; Description: string; Query: HuntQuery }
+
 type Route =
     | Dashboard
     | Entities

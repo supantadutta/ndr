@@ -343,6 +343,67 @@ type AuditEntryDto =
       SubjectId: string }
 
 // ---------------------------------------------------------------------------
+// Investigation graph (Phase 4)
+// ---------------------------------------------------------------------------
+
+type GraphNodeDto =
+    { NodeId: string
+      Kind: string
+      Label: string
+      EntityId: string option
+      Risk: int
+      Tags: string list }
+
+type GraphEdgeDto =
+    { EdgeId: string
+      FromNode: string
+      ToNode: string
+      Kind: string
+      Label: string
+      Weight: float }
+
+type InvestigationGraphDto =
+    { Nodes: GraphNodeDto list
+      Edges: GraphEdgeDto list }
+
+// ---------------------------------------------------------------------------
+// Threat hunting (Phase 4)
+// ---------------------------------------------------------------------------
+
+type HuntPredicateDto = { Field: string; Op: string; Value: string }
+
+type HuntQueryDto =
+    { Predicates: HuntPredicateDto list
+      WindowMinutes: int
+      Limit: int }
+
+type HuntRowDto =
+    { Timestamp: string
+      Category: string
+      Protocol: string
+      App: string
+      SourceIp: string
+      DestinationIp: string
+      DestinationPort: int option
+      BytesOut: int64
+      BytesIn: int64
+      Detail: string }
+
+type HuntBucketDto = { Key: string; Count: int; Bytes: int64 }
+
+type HuntResultDto =
+    { Total: int
+      Rows: HuntRowDto list
+      TopDestinations: HuntBucketDto list
+      TopSources: HuntBucketDto list }
+
+type HuntTemplateDto =
+    { Id: string
+      Name: string
+      Description: string
+      Query: HuntQueryDto }
+
+// ---------------------------------------------------------------------------
 // Route table (single source of truth for URLs)
 // ---------------------------------------------------------------------------
 
@@ -364,3 +425,7 @@ module Routes =
     let triageFilters = "/api/triage-filters"
     let allowlists = "/api/allowlists"
     let auditLog = "/api/audit"
+    let graphEntity (id: string) = sprintf "/api/graph/entity/%s" id
+    let graphIncident (id: string) = sprintf "/api/graph/incident/%s" id
+    let huntSearch = "/api/hunt/search"
+    let huntTemplates = "/api/hunt/templates"

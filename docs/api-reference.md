@@ -114,6 +114,23 @@ tuning, and governance operation.
 Read-only, evidence-bound AI investigation summary (fact / inference / recommendation with
 citations). See `ai-assistant-security.md`.
 
+## Investigation graph & threat hunting (Phase 4)
+
+### `GET /api/graph/entity/{id}` · `GET /api/graph/incident/{id}`
+Return an `InvestigationGraphDto` (`nodes` + `edges`) built from the recent event window:
+host↔peer communication, DNS queries, triggered detections, and — for incidents —
+shared external infrastructure edges that reveal blast radius across hosts.
+
+### `POST /api/hunt/search`
+Body `HuntQueryDto` `{ predicates: [{field, op, value}], windowMinutes, limit }` where `op`
+∈ `eq | contains | gt | lt`. Returns `HuntResultDto` — matching rows plus top-destination
+and top-source aggregations. Fields include src_ip, dst_ip, domain, sni, user_agent,
+account, port, protocol, app, category, direction.
+
+### `GET /api/hunt/templates`
+Returns canned `HuntTemplateDto[]` (top external destinations, DNS activity, SMB writes,
+remote access, IDS alerts).
+
 ## Roadmap endpoints
 
 The following API groups are defined in the product architecture and delivered in later
