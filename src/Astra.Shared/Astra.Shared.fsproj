@@ -12,6 +12,7 @@
     <Compile Include="Scoring.fs" />
     <Compile Include="Incidents.fs" />
     <Compile Include="Governance.fs" />
+    <Compile Include="Operations.fs" />
     <Compile Include="Api.fs" />
   </ItemGroup>
 </Project>

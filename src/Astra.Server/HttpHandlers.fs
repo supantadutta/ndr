@@ -324,6 +324,105 @@ let huntSearchHandler (store: AstraStore) : HttpHandler =
                 return! badRequest (sprintf "invalid hunt query: %s" ex.Message) next ctx
         }
 
+// -------------------------------------------------------- threat intel (P5)
+let tiIndicatorsHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.Indicators |> List.map Astra.Server.Mappers.indicatorDto) next ctx
+
+let tiFeedsHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.Feeds |> List.map Astra.Server.Mappers.feedDto) next ctx
+
+let tiMatchesHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.IntelMatches |> List.truncate 200 |> List.map Astra.Server.Mappers.threatMatchDto) next ctx
+
+let tiCreateIndicatorHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<CreateIndicatorRequest> body
+                let now = DateTimeOffset.UtcNow
+                store.UpsertIndicator
+                    { IndicatorId = Guid.NewGuid(); Indicator = req.Indicator
+                      IndicatorType = IndicatorType.parse req.IndicatorType
+                      FeedName = (if System.String.IsNullOrWhiteSpace req.FeedName then "analyst" else req.FeedName)
+                      ActorLabel = req.Actor; ToolLabel = None; CampaignLabel = None
+                      Confidence = req.Confidence; FirstSeen = now; LastSeen = now; ExpiresAt = None; Enabled = true }
+                store.Audit { At = now; Actor = req.CreatedBy; ActorKind = "user"; Action = "intel.add_indicator"; SubjectKind = "indicator"; SubjectId = req.Indicator; Details = Map.empty }
+                return! json (store.Indicators |> List.map Astra.Server.Mappers.indicatorDto) next ctx
+            with ex -> return! badRequest (sprintf "invalid indicator: %s" ex.Message) next ctx
+        }
+
+let tiImportHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<ImportIndicatorsRequest> body
+                let n = Astra.Server.ThreatIntel.importCsv store req.FeedName req.Csv
+                store.Audit { At = DateTimeOffset.UtcNow; Actor = req.Actor; ActorKind = "user"; Action = "intel.import_csv"; SubjectKind = "feed"; SubjectId = req.FeedName; Details = Map.ofList [ "count", string n ] }
+                return! json { Imported = n } next ctx
+            with ex -> return! badRequest (sprintf "invalid import: %s" ex.Message) next ctx
+        }
+
+// ------------------------------------------------------------- response (P5)
+let responseActionsHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.ResponseActions |> List.map Astra.Server.Mappers.responseActionDto) next ctx
+
+let responseConnectorsHandler (store: AstraStore) : HttpHandler =
+    fun next ctx -> json (store.Connectors |> List.map Astra.Server.Mappers.connectorDto) next ctx
+
+let requestResponseActionHandler (store: AstraStore) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<RequestResponseActionRequest> body
+                let action = Astra.Server.Response.request store (ResponseActionKind.parse req.Kind) req.Target req.Reason req.Evidence [] req.Actor
+                return! json (Astra.Server.Mappers.responseActionDto action) next ctx
+            with ex -> return! badRequest (sprintf "invalid response request: %s" ex.Message) next ctx
+        }
+
+let approveActionHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<ApproveActionRequest> body
+                match Guid.TryParse id with
+                | true, g ->
+                    match Astra.Server.Response.approve store g req.Actor with
+                    | Ok a -> return! json (Astra.Server.Mappers.responseActionDto a) next ctx
+                    | Error e -> return! badRequest e next ctx
+                | _ -> return! badRequest "invalid action id" next ctx
+            with ex -> return! badRequest (sprintf "invalid approve: %s" ex.Message) next ctx
+        }
+
+let rejectActionHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<ApproveActionRequest> body
+                match Guid.TryParse id with
+                | true, g ->
+                    match Astra.Server.Response.reject store g req.Actor with
+                    | Ok a -> return! json (Astra.Server.Mappers.responseActionDto a) next ctx
+                    | Error e -> return! badRequest e next ctx
+                | _ -> return! badRequest "invalid action id" next ctx
+            with ex -> return! badRequest (sprintf "invalid reject: %s" ex.Message) next ctx
+        }
+
+let incidentReportHandler (store: AstraStore) (id: string) : HttpHandler =
+    fun next ctx ->
+        match Guid.TryParse id with
+        | true, g ->
+            match store.TryGetIncident(IncidentId g) with
+            | Some inc ->
+                ctx.SetContentType "text/plain; charset=utf-8"
+                setBodyFromString (Astra.Server.Response.incidentReport store inc) next ctx
+            | None -> (setStatusCode 404 >=> json { Error = "not_found"; Detail = "incident not found" }) next ctx
+        | _ -> badRequest "invalid incident id" next ctx
+
 // ------------------------------------------------------------------ routing
 let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Server.Assistant.IAnalysisProvider) (token: string) : HttpHandler =
     choose [
@@ -344,6 +443,12 @@ let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Se
             route Routes.huntTemplates >=> huntTemplatesHandler
             routef "/api/graph/entity/%s" (graphEntityHandler store)
             routef "/api/graph/incident/%s" (graphIncidentHandler store)
+            route Routes.tiIndicators >=> tiIndicatorsHandler store
+            route Routes.tiFeeds >=> tiFeedsHandler store
+            route Routes.tiMatches >=> tiMatchesHandler store
+            route Routes.responseActions >=> responseActionsHandler store
+            route Routes.responseConnectors >=> responseConnectorsHandler store
+            routef "/api/incidents/%s/report" (incidentReportHandler store)
         ]
         POST >=> choose [
             route Routes.ingestEvents >=> ingestEventsHandler pipeline token
@@ -353,6 +458,11 @@ let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Se
             route Routes.triageFilters >=> createTriageFilterHandler store
             route Routes.allowlists >=> createAllowlistHandler store
             route Routes.huntSearch >=> huntSearchHandler store
+            route Routes.tiIndicators >=> tiCreateIndicatorHandler store
+            route Routes.tiImport >=> tiImportHandler store
+            route Routes.responseActions >=> requestResponseActionHandler store
+            routef "/api/response/actions/%s/approve" (approveActionHandler store)
+            routef "/api/response/actions/%s/reject" (rejectActionHandler store)
         ]
         setStatusCode 404 >=> json { Error = "not_found"; Detail = "no such route" }
     ]

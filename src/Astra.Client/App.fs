@@ -64,14 +64,8 @@ let private content (route: Route) =
     | AttackGraph -> Pages.AttackGraph.AttackGraph ()
     | Hunting -> Pages.Hunting.Hunting ()
     | DetectionEngineering -> Pages.DetectionEngineering.DetectionEngineering ()
-    | ThreatIntel ->
-        Pages.Placeholder.Placeholder "Threat Intelligence" "Phase 5"
-            [ "IOC and feed management (IP / domain / URL / hash)"; "CSV / STIX-style import"
-              "Indicator match history"; "Actor / tool / campaign context" ]
-    | ResponseCenter ->
-        Pages.Placeholder.Placeholder "Response Center" "Phase 5"
-            [ "Analyst-approved response workflows"; "Blocklist feeds and connector status"
-              "Simulation mode and audit trail"; "SIEM / SOAR / EDR / firewall connectors" ]
+    | ThreatIntel -> Pages.ThreatIntel.ThreatIntel ()
+    | ResponseCenter -> Pages.ResponseCenter.ResponseCenter ()
     | Admin -> Pages.Admin.Admin ()
 
 [<ReactComponent>]

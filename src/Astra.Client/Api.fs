@@ -301,6 +301,61 @@ module private Decode =
               Description = get.Required.Field "description" Decode.string
               Query = get.Required.Field "query" huntQuery })
 
+    let indicator : Decoder<ThreatIndicator> =
+        Decode.object (fun get ->
+            { IndicatorId = get.Required.Field "indicatorId" Decode.string
+              Indicator = get.Required.Field "indicator" Decode.string
+              IndicatorType = get.Required.Field "indicatorType" Decode.string
+              FeedName = get.Required.Field "feedName" Decode.string
+              Actor = get.Optional.Field "actor" Decode.string
+              Tool = get.Optional.Field "tool" Decode.string
+              Campaign = get.Optional.Field "campaign" Decode.string
+              Confidence = get.Required.Field "confidence" Decode.int
+              FirstSeen = get.Required.Field "firstSeen" Decode.string
+              LastSeen = get.Required.Field "lastSeen" Decode.string
+              Enabled = get.Required.Field "enabled" Decode.bool })
+
+    let feed : Decoder<ThreatFeed> =
+        Decode.object (fun get ->
+            { Name = get.Required.Field "name" Decode.string
+              Kind = get.Required.Field "kind" Decode.string
+              IndicatorCount = get.Required.Field "indicatorCount" Decode.int
+              LastUpdate = get.Optional.Field "lastUpdate" Decode.string
+              Status = get.Required.Field "status" Decode.string })
+
+    let threatMatch : Decoder<ThreatMatch> =
+        Decode.object (fun get ->
+            { Indicator = get.Required.Field "indicator" Decode.string
+              IndicatorType = get.Required.Field "indicatorType" Decode.string
+              FeedName = get.Required.Field "feedName" Decode.string
+              Actor = get.Optional.Field "actor" Decode.string
+              MatchedValue = get.Required.Field "matchedValue" Decode.string
+              MatchedAt = get.Required.Field "matchedAt" Decode.string
+              DetectionId = get.Optional.Field "detectionId" Decode.string })
+
+    let responseAction : Decoder<ResponseAction> =
+        Decode.object (fun get ->
+            { ActionId = get.Required.Field "actionId" Decode.string
+              Kind = get.Required.Field "kind" Decode.string
+              Reason = get.Required.Field "reason" Decode.string
+              Target = get.Required.Field "target" Decode.string
+              Status = get.Required.Field "status" Decode.string
+              RequestedBy = get.Required.Field "requestedBy" Decode.string
+              ApprovedBy = get.Optional.Field "approvedBy" Decode.string
+              ConnectorName = get.Optional.Field "connectorName" Decode.string
+              Simulation = get.Required.Field "simulation" Decode.bool
+              Result = get.Optional.Field "result" Decode.string
+              AffectedEntityCount = get.Required.Field "affectedEntityCount" Decode.int
+              CreatedAt = get.Required.Field "createdAt" Decode.string })
+
+    let connector : Decoder<ResponseConnector> =
+        Decode.object (fun get ->
+            { Name = get.Required.Field "name" Decode.string
+              Kind = get.Required.Field "kind" Decode.string
+              ConfigRef = get.Required.Field "configRef" Decode.string
+              SimulationMode = get.Required.Field "simulationMode" Decode.bool
+              Status = get.Required.Field "status" Decode.string })
+
 // -------------------------------------------------------------------- fetch
 let private getJson<'T> (path: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
     promise {
@@ -328,6 +383,11 @@ let getAudit () = getJson "/api/audit" (Decode.list Decode.auditEntry)
 let getGraphEntity (id: string) = getJson (sprintf "/api/graph/entity/%s" id) Decode.graph
 let getGraphIncident (id: string) = getJson (sprintf "/api/graph/incident/%s" id) Decode.graph
 let getHuntTemplates () = getJson "/api/hunt/templates" (Decode.list Decode.huntTemplate)
+let getIndicators () = getJson "/api/threat-intel/indicators" (Decode.list Decode.indicator)
+let getFeeds () = getJson "/api/threat-intel/feeds" (Decode.list Decode.feed)
+let getThreatMatches () = getJson "/api/threat-intel/matches" (Decode.list Decode.threatMatch)
+let getResponseActions () = getJson "/api/response/actions" (Decode.list Decode.responseAction)
+let getConnectors () = getJson "/api/response/connectors" (Decode.list Decode.connector)
 
 /// POST a JSON body (already-serialized string) and decode the response.
 let private postJson<'T> (path: string) (body: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
@@ -372,3 +432,30 @@ let runHunt (query: HuntQuery) =
               "limit", Encode.int query.Limit ]
         |> Encode.toString 0
     postJson "/api/hunt/search" body Decode.huntResult
+
+let addIndicator (indicator: string) (indType: string) (feed: string) (confidence: int) (actor: string) (createdBy: string) =
+    let body =
+        Encode.object
+            [ "indicator", Encode.string indicator
+              "indicatorType", Encode.string indType
+              "feedName", Encode.string feed
+              "confidence", Encode.int confidence
+              "actor", (if actor = "" then Encode.nil else Encode.string actor)
+              "createdBy", Encode.string createdBy ]
+        |> Encode.toString 0
+    postJson "/api/threat-intel/indicators" body (Decode.list Decode.indicator)
+
+let requestResponseAction (kind: string) (target: string) (reason: string) (actor: string) =
+    let body =
+        Encode.object
+            [ "kind", Encode.string kind; "target", Encode.string target
+              "reason", Encode.string reason; "evidence", Encode.list []
+              "actor", Encode.string actor ]
+        |> Encode.toString 0
+    postJson "/api/response/actions" body Decode.responseAction
+
+let approveAction (id: string) (actor: string) =
+    postJson (sprintf "/api/response/actions/%s/approve" id) (Encode.object [ "actor", Encode.string actor ] |> Encode.toString 0) Decode.responseAction
+
+let rejectAction (id: string) (actor: string) =
+    postJson (sprintf "/api/response/actions/%s/reject" id) (Encode.object [ "actor", Encode.string actor ] |> Encode.toString 0) Decode.responseAction

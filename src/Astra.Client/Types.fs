@@ -208,6 +208,27 @@ type HuntResult =
 
 type HuntTemplate = { Id: string; Name: string; Description: string; Query: HuntQuery }
 
+// ---- Phase 5: threat intel + response ----
+type ThreatIndicator =
+    { IndicatorId: string; Indicator: string; IndicatorType: string; FeedName: string
+      Actor: string option; Tool: string option; Campaign: string option
+      Confidence: int; FirstSeen: string; LastSeen: string; Enabled: bool }
+
+type ThreatFeed =
+    { Name: string; Kind: string; IndicatorCount: int; LastUpdate: string option; Status: string }
+
+type ThreatMatch =
+    { Indicator: string; IndicatorType: string; FeedName: string; Actor: string option
+      MatchedValue: string; MatchedAt: string; DetectionId: string option }
+
+type ResponseAction =
+    { ActionId: string; Kind: string; Reason: string; Target: string; Status: string
+      RequestedBy: string; ApprovedBy: string option; ConnectorName: string option
+      Simulation: bool; Result: string option; AffectedEntityCount: int; CreatedAt: string }
+
+type ResponseConnector =
+    { Name: string; Kind: string; ConfigRef: string; SimulationMode: bool; Status: string }
+
 type Route =
     | Dashboard
     | Entities

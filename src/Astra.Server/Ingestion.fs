@@ -195,7 +195,9 @@ type IngestionPipeline(store: AstraStore, classifier: Classifier, config: Astra.
     member _.RunAnalysisCycle() =
         let now = DateTimeOffset.UtcNow
         let window = store.RecentEvents config.DetectionWindow
-        let detections = engine.Run(window, now)
+        let ruleDetections = engine.Run(window, now)
+        let intelDetections = Astra.Server.ThreatIntel.scan store window now
+        let detections = ruleDetections @ intelDetections
         Astra.Server.ScoringEngine.recomputeAll store now
         let incidents = Astra.Server.Correlation.correlate store now
         if not detections.IsEmpty || not incidents.IsEmpty then

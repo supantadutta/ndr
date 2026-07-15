@@ -201,3 +201,22 @@ let seedHealth (sensors: Sensor list) : SensorHealthSample list =
           ZeekRunning = true
           SuricataRunning = true
           Errors = if i = 2 then [ "capture buffer pressure on eth1" ] else [] })
+
+/// Seed threat-intel indicators that match the demo scenarios, plus connectors.
+let seedIndicators () : ThreatIndicator list =
+    let now = DateTimeOffset.UtcNow
+    [ { IndicatorId = Guid.NewGuid(); Indicator = "203.0.113.66"; IndicatorType = IndicatorType.Ip
+        FeedName = "astra-curated-c2"; ActorLabel = Some "DEMO-BEAR"; ToolLabel = Some "GenericImplant"
+        CampaignLabel = Some "demo-campaign"; Confidence = 90; FirstSeen = now.AddDays(-7.0); LastSeen = now
+        ExpiresAt = None; Enabled = true }
+      { IndicatorId = Guid.NewGuid(); Indicator = "cdn-metrics.example-c2.net"; IndicatorType = IndicatorType.Domain
+        FeedName = "astra-curated-c2"; ActorLabel = Some "DEMO-BEAR"; ToolLabel = None; CampaignLabel = None
+        Confidence = 85; FirstSeen = now.AddDays(-7.0); LastSeen = now; ExpiresAt = None; Enabled = true }
+      { IndicatorId = Guid.NewGuid(); Indicator = "198.51.100.9"; IndicatorType = IndicatorType.Ip
+        FeedName = "exfil-infra"; ActorLabel = None; ToolLabel = None; CampaignLabel = None
+        Confidence = 70; FirstSeen = now.AddDays(-2.0); LastSeen = now; ExpiresAt = None; Enabled = true } ]
+
+let seedConnectors () : ResponseConnector list =
+    [ { ConnectorName = "primary-siem"; Kind = ConnectorKind.SplunkHec; ConfigRef = "env:ASTRA_SIEM_URL"; SimulationMode = true; Status = "configured" }
+      { ConnectorName = "edge-firewall"; Kind = ConnectorKind.Firewall; ConfigRef = "env:ASTRA_FW_FEED"; SimulationMode = true; Status = "configured" }
+      { ConnectorName = "soc-webhook"; Kind = ConnectorKind.Webhook; ConfigRef = "env:ASTRA_WEBHOOK_URL"; SimulationMode = true; Status = "configured" } ]

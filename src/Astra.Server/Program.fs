@@ -57,6 +57,8 @@ let main args =
         let sensors = SeedData.seedSensors ()
         sensors |> List.iter store.UpsertSensor
         SeedData.seedHealth sensors |> List.iter store.RecordHealth
+        SeedData.seedIndicators () |> List.iter store.UpsertIndicator
+        SeedData.seedConnectors () |> List.iter store.UpsertConnector
         let events = SeedData.generateEvents sensors
         events |> List.iter pipeline.Submit
         // run one synchronous analysis pass so the dashboard is populated immediately

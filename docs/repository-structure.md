@@ -18,6 +18,7 @@ astra-ndr/
 │   │   ├── Detections.fs        detection + rule-definition types
 │   │   ├── Scoring.fs           explainable score factors / breakdown
 │   │   ├── Incidents.fs         incidents + investigation graph types
+│   │   ├── Operations.fs        threat-intel + response-action + connector domain
 │   │   └── Api.fs               wire DTOs + route table (Routes module)
 │   │
 │   ├── Astra.Server/            CENTRAL BRAIN (Giraffe)
@@ -31,6 +32,8 @@ astra-ndr/
 │   │   ├── Assistant.fs         read-only evidence-bound AI provider (pluggable LLM)
 │   │   ├── Graph.fs             investigation/attack graph engine (entity + incident)
 │   │   ├── Hunt.fs              threat-hunting predicate engine + templates
+│   │   ├── ThreatIntel.fs       IOC matching engine + CSV import (intel.indicator_match)
+│   │   ├── Response.fs          approval-gated simulation-first actions + CEF/JSON export + reporting
 │   │   ├── SeedData.fs          synthetic demo scenarios
 │   │   ├── Ingestion.fs         DTO mapping + async pipeline + background worker
 │   │   ├── Mappers.fs           domain → DTO projections
@@ -51,7 +54,8 @@ astra-ndr/
 │       ├── Charts.fs            inline SVG charts (bars, trend line)
 │       ├── Components.fs        panels, badges, stat tiles, tables, remote-data view
 │       ├── Pages/               Dashboard, EntityQueue, EntityDetail, Detections,
-│       │                        Incidents, Sensors, Placeholder (roadmap pages)
+│       │                        Incidents, Sensors, DetectionEngineering, AttackGraph,
+│       │                        Hunting, ThreatIntel, ResponseCenter, Admin
 │       ├── App.fs               shell: sidebar nav + hash router
 │       ├── Main.fs              React root
 │       ├── index.html / vite.config.js / package.json / styles.css
@@ -66,7 +70,8 @@ astra-ndr/
 │   ├── client.Dockerfile        Fable→Vite build → nginx
 │   └── nginx.conf               SPA + /api reverse proxy + hardening headers
 │
-├── tests/Astra.Tests/           xUnit: parser, detection, scoring, entity-resolution tests
+├── tests/Astra.Tests/           xUnit (51): parser, detection, scoring, entity-resolution,
+│                                baseline, governance, graph/hunt, threat-intel/response
 │
 ├── lab/
 │   ├── demo_sensor.py           sensor simulator: attack scenarios over the ingest API

@@ -55,8 +55,9 @@ This is what the Detection Center renders, and what the (future) AI assistant ci
 | `exfil.large_upload_rare_destination` | Exfiltration | T1048 | upload-dominated volume to a rarely-contacted destination |
 | `policy.cleartext_external` | Policy / Exposure | T1048.003 | FTP/Telnet/plain-HTTP to an external destination |
 | `signature.high_severity_ids_alert` | Signature (IDS) | T1071 | high-severity Suricata match, correlated with behavior |
+| `intel.indicator_match` | Threat Intel | T1071 | outbound destination / DNS / SNI / HTTP host / file hash matches an enabled IOC (actor-attributed) |
 
-Rules span behavioral, statistical, rule, and signature engine kinds. Each is
+Rules span behavioral, statistical, rule, signature, and threat-intel engine kinds. Each is
 individually **enable/disable**-able and its thresholds are **tunable at runtime**
 through the Detection Engineering API/UI (`store.RuleThreshold` reads live config, so a
 change takes effect on the next analysis cycle without a rebuild).

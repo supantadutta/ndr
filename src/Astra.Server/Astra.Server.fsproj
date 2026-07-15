@@ -14,6 +14,8 @@
     <Compile Include="Assistant.fs" />
     <Compile Include="Graph.fs" />
     <Compile Include="Hunt.fs" />
+    <Compile Include="ThreatIntel.fs" />
+    <Compile Include="Response.fs" />
     <Compile Include="SeedData.fs" />
     <Compile Include="Ingestion.fs" />
     <Compile Include="Mappers.fs" />

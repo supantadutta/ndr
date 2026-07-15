@@ -25,6 +25,11 @@ type AstraStore() =
     let allowlists = ConcurrentDictionary<Guid, AllowlistEntry>()
     let auditLog = ConcurrentQueue<AuditEntry>()
     let baselineState = ConcurrentDictionary<string, Baselines.EwmaState>()   // "scope|metric" -> state
+    // Phase 5: threat intelligence + response.
+    let indicators = ConcurrentDictionary<string, ThreatIndicator>()   // "type:value" -> indicator
+    let intelMatches = ConcurrentQueue<ThreatIntelMatch>()
+    let responseActions = ConcurrentDictionary<Guid, ResponseAction>()
+    let connectors = ConcurrentDictionary<string, ResponseConnector>()
     let maxEventsInMemory = 200_000
 
     // ------------------------------------------------------------------ sensors
@@ -171,3 +176,31 @@ type AstraStore() =
         | true, s -> s
         | _ -> Baselines.Ewma.create alpha
     member _.SetBaseline(key: string, s: Baselines.EwmaState) = baselineState.[key] <- s
+
+    // ----------------------------------------------------------- threat intel
+    member _.UpsertIndicator(i: ThreatIndicator) =
+        indicators.[sprintf "%s:%s" (IndicatorType.label i.IndicatorType) (i.Indicator.ToLowerInvariant())] <- i
+    member _.Indicators = indicators.Values |> Seq.toList
+    member _.TryMatchIndicator(indType: IndicatorType, value: string) =
+        match indicators.TryGetValue(sprintf "%s:%s" (IndicatorType.label indType) (value.ToLowerInvariant())) with
+        | true, i when i.Enabled -> Some i
+        | _ -> None
+    member _.Feeds =
+        indicators.Values
+        |> Seq.groupBy (fun i -> i.FeedName)
+        |> Seq.map (fun (name, items) ->
+            let items = Seq.toList items
+            { FeedId = Guid.Empty; Name = name; Kind = FeedKind.Manual
+              IndicatorCount = items.Length
+              LastUpdate = (items |> List.map (fun i -> i.LastSeen) |> function [] -> None | xs -> Some (List.max xs))
+              Status = "active" })
+        |> Seq.toList
+    member _.RecordIntelMatch(m: ThreatIntelMatch) = intelMatches.Enqueue m
+    member _.IntelMatches = intelMatches |> Seq.toList |> List.sortByDescending (fun m -> m.MatchedAt)
+
+    // -------------------------------------------------------------- response
+    member _.UpsertResponseAction(a: ResponseAction) = responseActions.[a.ActionId] <- a
+    member _.ResponseActions = responseActions.Values |> Seq.toList |> List.sortByDescending (fun a -> a.CreatedAt)
+    member _.TryGetResponseAction(id: Guid) = match responseActions.TryGetValue id with | true, a -> Some a | _ -> None
+    member _.UpsertConnector(c: ResponseConnector) = connectors.[c.ConnectorName] <- c
+    member _.Connectors = connectors.Values |> Seq.toList

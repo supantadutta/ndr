@@ -404,6 +404,84 @@ type HuntTemplateDto =
       Query: HuntQueryDto }
 
 // ---------------------------------------------------------------------------
+// Threat intelligence (Phase 5)
+// ---------------------------------------------------------------------------
+
+type ThreatIndicatorDto =
+    { IndicatorId: string
+      Indicator: string
+      IndicatorType: string
+      FeedName: string
+      Actor: string option
+      Tool: string option
+      Campaign: string option
+      Confidence: int
+      FirstSeen: string
+      LastSeen: string
+      Enabled: bool }
+
+type ThreatFeedDto =
+    { Name: string
+      Kind: string
+      IndicatorCount: int
+      LastUpdate: string option
+      Status: string }
+
+type ThreatMatchDto =
+    { Indicator: string
+      IndicatorType: string
+      FeedName: string
+      Actor: string option
+      MatchedValue: string
+      MatchedAt: string
+      DetectionId: string option }
+
+type CreateIndicatorRequest =
+    { Indicator: string
+      IndicatorType: string      // ip | domain | url | hash
+      FeedName: string
+      Confidence: int
+      Actor: string option
+      CreatedBy: string }
+
+type ImportIndicatorsRequest = { FeedName: string; Csv: string; Actor: string }
+type ImportResultDto = { Imported: int }
+
+// ---------------------------------------------------------------------------
+// Response center (Phase 5)
+// ---------------------------------------------------------------------------
+
+type ResponseActionDto =
+    { ActionId: string
+      Kind: string
+      Reason: string
+      Target: string
+      Status: string
+      RequestedBy: string
+      ApprovedBy: string option
+      ConnectorName: string option
+      Simulation: bool
+      Result: string option
+      AffectedEntityCount: int
+      CreatedAt: string }
+
+type ResponseConnectorDto =
+    { Name: string
+      Kind: string
+      ConfigRef: string
+      SimulationMode: bool
+      Status: string }
+
+type RequestResponseActionRequest =
+    { Kind: string               // block_ip | block_domain | isolate_host_sim | export_siem | ...
+      Target: string
+      Reason: string
+      Evidence: string list
+      Actor: string }
+
+type ApproveActionRequest = { Actor: string }
+
+// ---------------------------------------------------------------------------
 // Route table (single source of truth for URLs)
 // ---------------------------------------------------------------------------
 
@@ -429,3 +507,12 @@ module Routes =
     let graphIncident (id: string) = sprintf "/api/graph/incident/%s" id
     let huntSearch = "/api/hunt/search"
     let huntTemplates = "/api/hunt/templates"
+    let tiIndicators = "/api/threat-intel/indicators"
+    let tiFeeds = "/api/threat-intel/feeds"
+    let tiMatches = "/api/threat-intel/matches"
+    let tiImport = "/api/threat-intel/import"
+    let responseActions = "/api/response/actions"
+    let responseConnectors = "/api/response/connectors"
+    let responseApprove (id: string) = sprintf "/api/response/actions/%s/approve" id
+    let responseReject (id: string) = sprintf "/api/response/actions/%s/reject" id
+    let incidentReport (id: string) = sprintf "/api/incidents/%s/report" id

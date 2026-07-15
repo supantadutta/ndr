@@ -318,3 +318,52 @@ let huntQueryDto (q: Astra.Server.Hunt.HuntQuery) : HuntQueryDto =
 
 let huntTemplateDto (t: Astra.Server.Hunt.HuntTemplate) : HuntTemplateDto =
     { Id = t.Id; Name = t.Name; Description = t.Description; Query = huntQueryDto t.Query }
+
+// ------------------------------------------------------------ threat intel (P5)
+let indicatorDto (i: ThreatIndicator) : ThreatIndicatorDto =
+    { IndicatorId = string i.IndicatorId
+      Indicator = i.Indicator
+      IndicatorType = IndicatorType.label i.IndicatorType
+      FeedName = i.FeedName
+      Actor = i.ActorLabel; Tool = i.ToolLabel; Campaign = i.CampaignLabel
+      Confidence = i.Confidence
+      FirstSeen = iso i.FirstSeen; LastSeen = iso i.LastSeen
+      Enabled = i.Enabled }
+
+let feedDto (f: ThreatFeed) : ThreatFeedDto =
+    { Name = f.Name
+      Kind = (match f.Kind with FeedKind.Manual -> "manual" | FeedKind.Csv -> "csv" | FeedKind.Json -> "json" | FeedKind.Taxii -> "taxii")
+      IndicatorCount = f.IndicatorCount
+      LastUpdate = f.LastUpdate |> Option.map iso
+      Status = f.Status }
+
+let threatMatchDto (m: ThreatIntelMatch) : ThreatMatchDto =
+    { Indicator = m.Indicator
+      IndicatorType = IndicatorType.label m.IndicatorType
+      FeedName = m.FeedName
+      Actor = m.ActorLabel
+      MatchedValue = m.MatchedValue
+      MatchedAt = iso m.MatchedAt
+      DetectionId = m.DetectionId |> Option.map (fun (DetectionId g) -> string g) }
+
+// --------------------------------------------------------------- response (P5)
+let responseActionDto (a: ResponseAction) : ResponseActionDto =
+    { ActionId = string a.ActionId
+      Kind = ResponseActionKind.label a.Kind
+      Reason = a.Reason
+      Target = a.Target
+      Status = ResponseStatus.label a.Status
+      RequestedBy = a.RequestedBy
+      ApprovedBy = a.ApprovedBy
+      ConnectorName = a.ConnectorName
+      Simulation = a.Simulation
+      Result = a.Result
+      AffectedEntityCount = a.AffectedEntities.Length
+      CreatedAt = iso a.CreatedAt }
+
+let connectorDto (c: ResponseConnector) : ResponseConnectorDto =
+    { Name = c.ConnectorName
+      Kind = ConnectorKind.label c.Kind
+      ConfigRef = c.ConfigRef
+      SimulationMode = c.SimulationMode
+      Status = c.Status }

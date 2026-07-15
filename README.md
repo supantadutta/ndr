@@ -122,7 +122,7 @@ correlated incidents. See [`docs/lab-demo.md`](docs/lab-demo.md).
   Incidents, Sensor Health, Detection Engineering, Admin/Audit
 - ✅ Docker Compose (postgres + redis + clickhouse + server + client + lab sensor)
 - ✅ Lab: sample Zeek/Suricata log generator + sensor replay + HTTP ingest simulator
-- ✅ **Test suite** (37 tests: parsers, detection rules, baselines, scoring, triage, entity resolution)
+- ✅ **Test suite** (51 tests: parsers, detection rules, baselines, scoring, triage, entity resolution, graph/hunt, threat-intel + response)
 
 ## Delivery roadmap
 
@@ -132,7 +132,7 @@ correlated incidents. See [`docs/lab-demo.md`](docs/lab-demo.md).
 | **2 — done** | Real sensor agent (Zeek + Suricata EVE/fast-log parsers), normalization from raw logs, PCAP/log replay, IDS signature detection + correlation, live auto-refresh UI, AI investigation assistant (pluggable), test suite. *(ClickHouse telemetry persistence remains for Phase 2.5.)* |
 | **3 — done** | Behavioral baseline engine (EMA/z-score/MAD/percentile/rarity/time-of-day), 12 detection rules across all families, tunable rule config (enable/disable + thresholds, live), triage workflows with suppression + audit trail, triage filters & allowlists, Detection Engineering + Admin/Audit UI. 37-test suite. |
 | **4 — done** | Investigation/attack graph engine (radial graph around an entity or incident, shared-infrastructure blast-radius edges), threat-hunting metadata search with typed predicates + templates + top-talker aggregations, Attack Graph & Threat Hunting UI pages. 42-test suite. *(Saved searches / convert-to-detection persist in Phase 4.5.)* |
-| **5** | Threat intelligence, response center + connectors, SIEM/webhook/Kafka exports, reporting |
+| **5 — done** | Threat-intelligence engine (IP/domain/URL/hash IOCs, feeds, CSV import, indicator-match detections with actor/campaign attribution), approval-gated **simulation-first** response actions (block/isolate/ticket/webhook/export) with connector registry, CEF/JSON SIEM exports, plaintext incident reporting, Threat Intelligence & Response Center UI pages. 51-test suite. *(Live connector delivery is enabled per-connector out of simulation mode.)* |
 
 Details in [`docs/deployment-roadmap.md`](docs/deployment-roadmap.md).
 

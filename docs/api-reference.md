@@ -131,9 +131,58 @@ account, port, protocol, app, category, direction.
 Returns canned `HuntTemplateDto[]` (top external destinations, DNS activity, SMB writes,
 remote access, IDS alerts).
 
+## Threat intelligence & response (Phase 5)
+
+### `GET /api/threat-intel/indicators`
+Returns `ThreatIndicatorDto[]` — IP/domain/URL/hash IOCs with feed, confidence, and
+actor/tool/campaign attribution.
+
+### `POST /api/threat-intel/indicators`
+Body `CreateIndicatorRequest` `{ indicator, indicatorType, feedName, confidence, actor?,
+createdBy }`. Upserts a single indicator (keyed on `type:value`) and returns the full
+indicator list.
+
+### `POST /api/threat-intel/import`
+Body `ImportIndicatorsRequest` `{ feedName, csv }`. Parses CSV
+`indicator,type,feed,confidence[,actor][,tool][,campaign]` (header/`#` lines skipped) and
+returns `ImportResultDto` `{ imported }`.
+
+### `GET /api/threat-intel/feeds`
+Returns `ThreatFeedDto[]` — indicators grouped by feed with per-feed counts and last-update.
+
+### `GET /api/threat-intel/matches`
+Returns `ThreatMatchDto[]` — recorded matches of an indicator against observed telemetry
+(newest first), each linked to the detection it raised.
+
+The matching engine runs every analysis cycle: outbound destinations, DNS queries, TLS SNI,
+HTTP host, and file hashes are checked against enabled indicators, raising an evidence-bound
+`intel.indicator_match` detection (deduped per rule + entity, MITRE **T1071**).
+
+### `GET /api/response/actions`
+Returns `ResponseActionDto[]` (newest first) — kind, target, status, simulation flag,
+requester/approver, result.
+
+### `POST /api/response/actions`
+Body `RequestResponseActionRequest` `{ kind, target, reason, evidence, actor }`. Creates a
+**pending** action. Destructive kinds (`block_ip | block_domain | block_host |
+isolate_host_sim | disable_account_sim | add_blocklist_feed`) are forced into simulation
+until a real connector is enabled.
+
+### `POST /api/response/actions/{id}/approve` · `POST /api/response/actions/{id}/reject`
+Body `ApproveActionRequest` `{ actor }`. Approving a simulated action records the intended
+side effect (`SIMULATED: would …`) without touching the network; `add_threat_indicator` has
+a real, safe effect. Both write an audit entry. `400` if the action is not pending.
+
+### `GET /api/response/connectors`
+Returns `ResponseConnectorDto[]` — SIEM/SOAR/EDR/firewall/webhook connectors with their
+`simulationMode` flag and status. Config references env keys only, never secrets.
+
+### `GET /api/incidents/{id}/report`
+Returns a plaintext incident report (`text/plain`): summary, kill-chain timeline, related
+detections, and recommended containment/investigation. `404` if unknown.
+
 ## Roadmap endpoints
 
 The following API groups are defined in the product architecture and delivered in later
-phases: metadata search & threat hunting, saved searches, custom detections, detection
-engineering/tuning, triage filters, allowlists, threat intel, response actions,
-notifications, audit logs, admin settings, and the read-only AI assistant.
+phases: saved searches, custom detections, notifications, RBAC/session auth, admin
+settings, and live (non-simulated) connector delivery.
