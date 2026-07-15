@@ -7,10 +7,42 @@ Base URL: the central brain (default `http://localhost:5170`). All responses are
 
 ## Authentication
 
-- **Read APIs** — open in Phase 1 dev; RBAC + session/API-key auth lands in Phase 5
-  (schema already present: `users`, `roles`, `api_keys`).
-- **Ingestion APIs** — require header `X-Astra-Sensor-Token: <token>` matching
-  `ASTRA_SENSOR_TOKEN`.
+- **Dev/demo** (`ASTRA_AUTH_ENABLED=false`, the default): all read/analyst APIs are open.
+- **Production** (`ASTRA_AUTH_ENABLED=true`): every API route requires a **session token**
+  (`Authorization: Bearer <token>` from `POST /api/auth/login`) or an **API key**
+  (`X-Astra-Api-Key`). Roles gate routes by permission: `read:api` (reads),
+  `triage:write` (triage/tuning/intel writes), `respond:request`, `respond:approve`,
+  `admin:manage`. Default roles: `admin` (`*`), `analyst`, `readonly`, `sensor`.
+- **Ingestion APIs** — always require header `X-Astra-Sensor-Token: <token>` matching
+  `ASTRA_SENSOR_TOKEN` (independent of RBAC so sensors keep streaming).
+
+### `GET /api/auth/status`
+Public. `{ "authEnabled": bool }` — the console uses this to decide whether to show sign-in.
+
+### `POST /api/auth/login`
+Body `{ username, password }`. Returns `{ token, expiresAt, user: { username, role,
+permissions } }` or a uniform `401`. Passwords are stored as PBKDF2-SHA256 hashes only.
+
+### `POST /api/auth/logout`
+Invalidates the presented bearer token.
+
+### `GET /api/auth/me`
+Returns the caller's resolved identity and permissions.
+
+### `GET/POST /api/auth/users` *(admin)*
+List users / create a user `{ username, password, displayName, role, actor }`.
+
+### `POST /api/auth/api-keys` *(admin)*
+Mint an API key `{ name, role, actor }`. The plaintext key is returned **once**; only its
+hash is stored.
+
+### `GET /api/telemetry/status`
+Durable-persistence health: `{ backend, endpoint, healthy, persisted, failed, lastError,
+lastFlush }` where `backend` ∈ `in-memory | clickhouse | opensearch`.
+
+### `POST /api/response/connectors/{name}/mode` *(admin)*
+Body `{ simulationMode, actor }`. Flips a connector between **simulation** and **live**
+delivery; audited. A live connector makes approved actions execute for real.
 
 ## Read endpoints
 

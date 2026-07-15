@@ -22,6 +22,7 @@
     <Compile Include="Pages/ThreatIntel.fs" />
     <Compile Include="Pages/ResponseCenter.fs" />
     <Compile Include="Pages/Admin.fs" />
+    <Compile Include="Pages/Login.fs" />
     <Compile Include="Pages/Placeholder.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Main.fs" />

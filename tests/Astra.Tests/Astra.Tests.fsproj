@@ -12,6 +12,7 @@
     <Compile Include="GovernanceTests.fs" />
     <Compile Include="GraphHuntTests.fs" />
     <Compile Include="OperationsTests.fs" />
+    <Compile Include="ProductionTests.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Astra.Shared\Astra.Shared.fsproj" />

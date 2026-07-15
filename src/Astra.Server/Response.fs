@@ -33,17 +33,33 @@ let request (store: AstraStore) (kind: ResponseActionKind) (target: string) (rea
         [ "target", target; "reason", reason ]
     action
 
-/// Approve and "execute" a pending action. In simulation the side effect is
-/// recorded, not performed. A real connector would be invoked here.
-let approve (store: AstraStore) (actionId: Guid) (approver: string) : Result<ResponseAction, string> =
+/// Approve and execute a pending action. Delivery is decided per connector:
+/// a matching connector in live mode carries the action out for real via the
+/// dispatcher; otherwise the side effect is recorded as a simulation. The
+/// engine itself never enforces anything — a human approved, and a connector
+/// explicitly flipped out of simulation mode is what makes delivery real.
+let approveWith (dispatcher: Astra.Server.Connectors.IConnectorDispatcher option)
+                (store: AstraStore) (actionId: Guid) (approver: string) : Result<ResponseAction, string> =
     match store.TryGetResponseAction actionId with
     | None -> Error "action not found"
     | Some a when a.Status <> ResponseStatus.PendingApproval -> Error "action is not pending approval"
     | Some a ->
         let now = DateTimeOffset.UtcNow
-        let result =
-            if a.Simulation then sprintf "SIMULATED: would %s '%s'" (ResponseActionKind.label a.Kind) a.Target
-            else sprintf "executed %s on '%s' via %s" (ResponseActionKind.label a.Kind) a.Target (defaultArg a.ConnectorName "connector")
+        let connector = Astra.Server.Connectors.selectConnector store a.Kind
+        let liveDelivery =
+            match dispatcher, connector with
+            | Some d, Some c when not c.SimulationMode -> Some (d, c)
+            | _ -> None
+        let status, result, connectorName =
+            match liveDelivery with
+            | Some (d, c) ->
+                match d.Deliver(c, { a with ApprovedBy = Some approver }) with
+                | Ok msg -> ResponseStatus.Completed, sprintf "executed %s on '%s' via %s: %s" (ResponseActionKind.label a.Kind) a.Target c.ConnectorName msg, Some c.ConnectorName
+                | Error e -> ResponseStatus.Failed, sprintf "delivery via %s failed: %s" c.ConnectorName e, Some c.ConnectorName
+            | None ->
+                ResponseStatus.Completed,
+                sprintf "SIMULATED: would %s '%s'" (ResponseActionKind.label a.Kind) a.Target,
+                (connector |> Option.map (fun c -> c.ConnectorName))
         // AddThreatIndicator has a real, safe effect even outside simulation.
         (match a.Kind with
          | ResponseActionKind.AddThreatIndicator ->
@@ -53,10 +69,17 @@ let approve (store: AstraStore) (actionId: Guid) (approver: string) : Result<Res
                   FeedName = "analyst"; ActorLabel = None; ToolLabel = None; CampaignLabel = None
                   Confidence = 75; FirstSeen = now; LastSeen = now; ExpiresAt = None; Enabled = true }
          | _ -> ())
-        let updated = { a with Status = ResponseStatus.Completed; ApprovedBy = Some approver; Result = Some result; UpdatedAt = now }
+        let simulated = liveDelivery.IsNone
+        let updated =
+            { a with Status = status; ApprovedBy = Some approver; Result = Some result
+                     ConnectorName = connectorName; Simulation = simulated; UpdatedAt = now }
         store.UpsertResponseAction updated
         audit store approver (sprintf "response.approve.%s" (ResponseActionKind.label a.Kind)) actionId [ "result", result ]
         Ok updated
+
+/// Approve without a dispatcher: always records a simulated side effect.
+let approve (store: AstraStore) (actionId: Guid) (approver: string) : Result<ResponseAction, string> =
+    approveWith None store actionId approver
 
 let reject (store: AstraStore) (actionId: Guid) (approver: string) : Result<ResponseAction, string> =
     match store.TryGetResponseAction actionId with

@@ -229,6 +229,14 @@ type ResponseAction =
 type ResponseConnector =
     { Name: string; Kind: string; ConfigRef: string; SimulationMode: bool; Status: string }
 
+// ---- Phase 6: auth + telemetry ----
+type AuthUser = { Username: string; DisplayName: string; Role: string; Permissions: string list }
+type LoginResult = { Token: string; ExpiresAt: string; User: AuthUser }
+
+type TelemetryStatus =
+    { Backend: string; Endpoint: string; Healthy: bool
+      Persisted: int64; Failed: int64; LastError: string option; LastFlush: string option }
+
 type Route =
     | Dashboard
     | Entities

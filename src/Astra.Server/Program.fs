@@ -28,9 +28,13 @@ let main args =
         .AddSingleton(store)
         .AddSingleton(classifier)
         .AddSingleton(config)
+        .AddSingleton<Astra.Server.Telemetry.ITelemetrySink>(fun sp ->
+            let logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Astra.Telemetry")
+            Astra.Server.Telemetry.create config logger)
         .AddSingleton<IngestionPipeline>(fun sp ->
             let logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("Astra.Ingestion")
-            IngestionPipeline(store, classifier, config, logger))
+            let sink = sp.GetRequiredService<Astra.Server.Telemetry.ITelemetrySink>()
+            IngestionPipeline(store, classifier, config, sink, logger))
         .AddHostedService<IngestionWorker>(fun sp ->
             new IngestionWorker(sp.GetRequiredService<IngestionPipeline>(), config,
                                 sp.GetRequiredService<ILogger<IngestionWorker>>()))
@@ -49,6 +53,15 @@ let main args =
         logger.LogWarning("ASTRA_POSTGRES not set - running with in-memory store only")
     | Ok n -> logger.LogInformation("Database ready ({Count} new migrations applied)", n)
     | Error msg -> logger.LogWarning("Database unavailable ({Message}) - continuing in-memory", msg)
+
+    // ---- telemetry persistence (best-effort: bootstrap schema/index) ----
+    let telemetrySink = app.Services.GetRequiredService<Astra.Server.Telemetry.ITelemetrySink>()
+    telemetrySink.Bootstrap ()
+    let ts = telemetrySink.Status
+    if ts.Backend = "in-memory" then
+        logger.LogInformation("Telemetry: in-memory only (set ASTRA_CLICKHOUSE_URL or ASTRA_OPENSEARCH_URL for durable persistence)")
+    else
+        logger.LogInformation("Telemetry backend: {Backend} ({Endpoint}), healthy={Healthy}", ts.Backend, ts.Endpoint, ts.Healthy)
 
     // ---- demo seed ----
     let pipeline = app.Services.GetRequiredService<IngestionPipeline>()
@@ -72,8 +85,25 @@ let main args =
     | Some cfg -> logger.LogInformation("LLM analysis endpoint configured ({Model}); provider stays evidence-bound", cfg.Model)
     | None -> logger.LogInformation("AI assistant using deterministic evidence-bound provider (set ASTRA_LLM_ENDPOINT to attach a model)")
 
+    // ---- authentication (RBAC; pass-through when disabled) ----
+    let auth = Astra.Server.Auth.AuthService(store, config)
+    if config.AuthEnabled then
+        match auth.EnsureAdmin() with
+        | Some username -> logger.LogInformation("Auth enabled - bootstrap admin '{User}' created (set ASTRA_ADMIN_PASSWORD)", username)
+        | None -> logger.LogInformation("Auth enabled")
+        if config.AdminPassword = "changeme-admin" then
+            logger.LogWarning("ASTRA_ADMIN_PASSWORD is the default - change it before exposing this server")
+    else
+        logger.LogWarning("Auth disabled (dev/demo mode) - set ASTRA_AUTH_ENABLED=true for production")
+
+    // ---- response connector delivery (live when a connector leaves simulation) ----
+    let dispatcher =
+        Astra.Server.Connectors.RealConnectorDispatcher(
+            app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Astra.Connectors"))
+        :> Astra.Server.Connectors.IConnectorDispatcher
+
     app.UseCors("console") |> ignore
-    app.UseGiraffe(HttpHandlers.webApp store pipeline analysisProvider config.SensorApiToken)
+    app.UseGiraffe(HttpHandlers.webApp store pipeline analysisProvider auth dispatcher config.SensorApiToken)
 
     logger.LogInformation("Astra NDR central brain listening")
     app.Run()

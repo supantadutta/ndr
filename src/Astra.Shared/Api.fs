@@ -481,6 +481,44 @@ type RequestResponseActionRequest =
 
 type ApproveActionRequest = { Actor: string }
 
+/// Toggle a connector between simulation and live-enforcing mode.
+type SetConnectorModeRequest = { SimulationMode: bool; Actor: string }
+
+// ---------------------------------------------------------------------------
+// Phase 6: authentication + telemetry status
+// ---------------------------------------------------------------------------
+
+type LoginRequest = { Username: string; Password: string }
+
+type AuthUserDto =
+    { Username: string
+      DisplayName: string
+      Role: string
+      Permissions: string list }
+
+type LoginResponse =
+    { Token: string
+      ExpiresAt: string
+      User: AuthUserDto }
+
+type CreateUserRequest =
+    { Username: string; Password: string; DisplayName: string; Role: string; Actor: string }
+
+type CreateApiKeyRequest = { Name: string; Role: string; Actor: string }
+type CreateApiKeyResponse = { KeyId: string; ApiKey: string; Name: string; Role: string }
+
+/// Public description of the auth posture (does the client need to log in?).
+type AuthStatusDto = { AuthEnabled: bool }
+
+type TelemetryStatusDto =
+    { Backend: string
+      Endpoint: string
+      Healthy: bool
+      Persisted: int64
+      Failed: int64
+      LastError: string option
+      LastFlush: string option }
+
 // ---------------------------------------------------------------------------
 // Route table (single source of truth for URLs)
 // ---------------------------------------------------------------------------
@@ -515,4 +553,13 @@ module Routes =
     let responseConnectors = "/api/response/connectors"
     let responseApprove (id: string) = sprintf "/api/response/actions/%s/approve" id
     let responseReject (id: string) = sprintf "/api/response/actions/%s/reject" id
+    let setConnectorMode (name: string) = sprintf "/api/response/connectors/%s/mode" name
     let incidentReport (id: string) = sprintf "/api/incidents/%s/report" id
+    // Phase 6
+    let authLogin = "/api/auth/login"
+    let authLogout = "/api/auth/logout"
+    let authMe = "/api/auth/me"
+    let authStatus = "/api/auth/status"
+    let authUsers = "/api/auth/users"
+    let authApiKeys = "/api/auth/api-keys"
+    let telemetryStatus = "/api/telemetry/status"

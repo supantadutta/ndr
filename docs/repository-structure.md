@@ -24,8 +24,10 @@ astra-ndr/
 │   ├── Astra.Server/            CENTRAL BRAIN (Giraffe)
 │   │   ├── Config.fs            environment-driven configuration
 │   │   ├── Json.fs              single System.Text.Json policy (Fable-compatible)
+│   │   ├── Telemetry.fs         durable event sink (ClickHouse / OpenSearch, best-effort)
 │   │   ├── Classification.fs    CIDR internal/external, direction, lane
 │   │   ├── Store.fs             thread-safe state + entity resolution
+│   │   ├── Auth.fs              RBAC: users/roles/sessions/API keys, PBKDF2 hashing
 │   │   ├── DetectionEngine.fs   IDetectionRule + 6 starter rules + engine
 │   │   ├── ScoringEngine.fs     explainable entity scoring
 │   │   ├── Correlation.fs       detections → incidents, attack-profile classifier
@@ -33,7 +35,8 @@ astra-ndr/
 │   │   ├── Graph.fs             investigation/attack graph engine (entity + incident)
 │   │   ├── Hunt.fs              threat-hunting predicate engine + templates
 │   │   ├── ThreatIntel.fs       IOC matching engine + CSV import (intel.indicator_match)
-│   │   ├── Response.fs          approval-gated simulation-first actions + CEF/JSON export + reporting
+│   │   ├── Connectors.fs        live connector dispatch (webhook/HEC/syslog/REST), env-ref secrets
+│   │   ├── Response.fs          approval-gated actions (sim or live per connector) + CEF/JSON export + reporting
 │   │   ├── SeedData.fs          synthetic demo scenarios
 │   │   ├── Ingestion.fs         DTO mapping + async pipeline + background worker
 │   │   ├── Mappers.fs           domain → DTO projections
@@ -55,7 +58,7 @@ astra-ndr/
 │       ├── Components.fs        panels, badges, stat tiles, tables, remote-data view
 │       ├── Pages/               Dashboard, EntityQueue, EntityDetail, Detections,
 │       │                        Incidents, Sensors, DetectionEngineering, AttackGraph,
-│       │                        Hunting, ThreatIntel, ResponseCenter, Admin
+│       │                        Hunting, ThreatIntel, ResponseCenter, Admin, Login
 │       ├── App.fs               shell: sidebar nav + hash router
 │       ├── Main.fs              React root
 │       ├── index.html / vite.config.js / package.json / styles.css
@@ -70,8 +73,9 @@ astra-ndr/
 │   ├── client.Dockerfile        Fable→Vite build → nginx
 │   └── nginx.conf               SPA + /api reverse proxy + hardening headers
 │
-├── tests/Astra.Tests/           xUnit (51): parser, detection, scoring, entity-resolution,
-│                                baseline, governance, graph/hunt, threat-intel/response
+├── tests/Astra.Tests/           xUnit (69): parser, detection, scoring, entity-resolution,
+│                                baseline, governance, graph/hunt, threat-intel/response,
+│                                auth/RBAC, connectors, telemetry
 │
 ├── lab/
 │   ├── demo_sensor.py           sensor simulator: attack scenarios over the ingest API

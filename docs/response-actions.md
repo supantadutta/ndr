@@ -1,11 +1,16 @@
 # Astra NDR — Response Actions
 
 Response is **analyst-approved, auditable, and simulation-first**. The Response Center,
-connector registry, and SIEM/JSON exports are **implemented** ([`Response.fs`](../src/Astra.Server/Response.fs),
+connector registry, live delivery, and SIEM/JSON exports are **implemented**
+([`Response.fs`](../src/Astra.Server/Response.fs), [`Connectors.fs`](../src/Astra.Server/Connectors.fs),
 [`Operations.fs`](../src/Astra.Shared/Operations.fs)) and surfaced in the **Response Center**
-UI page. Schema is present in `response_actions` / `response_connectors`. Live (non-simulated)
-connector delivery is enabled per connector out of simulation mode — the engine never performs
-a real block/isolate on its own.
+UI page. Schema is present in `response_actions` / `response_connectors`.
+
+**Live delivery is doubly gated.** An approved action executes for real only when a
+matching connector has been explicitly flipped out of simulation mode by an admin
+(`POST /api/response/connectors/{name}/mode`, or the toggle in the Response Center).
+Otherwise approval records a simulated result. The engine never performs a real
+block/isolate on its own.
 
 ## Actions
 
@@ -37,9 +42,17 @@ Syslog TCP/TLS · raw JSON over TCP · Kafka · Elastic/OpenSearch · Splunk-HEC
 Microsoft-Sentinel-style · Google-SecOps-style · generic webhook · generic REST · generic
 SIEM/SOAR exporter · generic EDR connector · generic firewall blocklist feed.
 
-Connectors are modeled behind a provider interface so a real integration slots in without
-touching detection/scoring/correlation logic. Connector configs reference environment
-keys — **no secrets are stored in the database**.
+Connectors are modeled behind `IConnectorDispatcher` so a real integration slots in
+without touching detection/scoring/correlation logic. The built-in dispatcher delivers
+for real over HTTP (webhook / Splunk-HEC event endpoint / OpenSearch `_doc` / generic
+REST with bearer token) and syslog TCP (CEF line). A connector's `ConfigRef` names an
+**environment variable** holding its endpoint (`env:ASTRA_FW_FEED` →
+`ASTRA_FW_FEED`), with an optional `<NAME>_TOKEN` env var for its auth token —
+**no secrets are stored in the database**.
+
+Connector selection maps action kinds to connector kinds (block → firewall, isolate →
+EDR, ticket → SOAR, export → SIEM family, webhook → webhook) and prefers a live
+connector over a simulated one.
 
 ## API
 

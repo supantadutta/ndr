@@ -75,6 +75,11 @@ module Severity =
         | "low" -> Severity.Low
         | _ -> Severity.Info
 
+module Protocol =
+    let label = function
+        | Protocol.Tcp -> "tcp" | Protocol.Udp -> "udp" | Protocol.Icmp -> "icmp"
+        | Protocol.Sctp -> "sctp" | Protocol.Other p -> p
+
 module AppProtocol =
     let label = function
         | AppProtocol.Dns -> "dns" | AppProtocol.Http -> "http" | AppProtocol.Tls -> "tls"

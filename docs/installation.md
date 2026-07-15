@@ -41,6 +41,19 @@ dotnet fable watch --run vite
 | `ASTRA_CORS_ORIGINS` | `http://localhost:5173` | comma-separated allowed origins |
 | `ASTRA_DETECTION_WINDOW_MIN` | `30` | detection sliding-window minutes |
 | `ASTRA_DETECTION_INTERVAL_SEC` | `15` | analysis-cycle interval |
+| `ASTRA_CLICKHOUSE_URL` | *(empty)* | ClickHouse HTTP endpoint for durable telemetry (e.g. `http://clickhouse:8123`) |
+| `ASTRA_CLICKHOUSE_DB` / `_TABLE` | `astra` / `events` | ClickHouse database/table |
+| `ASTRA_CLICKHOUSE_USER` / `_PASSWORD` | *(empty)* | ClickHouse credentials |
+| `ASTRA_OPENSEARCH_URL` | *(empty)* | OpenSearch/Elasticsearch base URL (used when ClickHouse is not set) |
+| `ASTRA_OPENSEARCH_INDEX` | `astra-events` | target index |
+| `ASTRA_OPENSEARCH_USER` / `_PASSWORD` | *(empty)* | basic-auth credentials |
+| `ASTRA_AUTH_ENABLED` | `false` | enforce RBAC (session tokens / API keys) on all API routes |
+| `ASTRA_ADMIN_USER` / `ASTRA_ADMIN_PASSWORD` | `admin` / `changeme-admin` | bootstrap admin account (change the password!) |
+| `ASTRA_SESSION_TTL_HOURS` | `12` | session lifetime |
+
+Connector endpoints are also environment-referenced (never stored in the DB): the seeded
+connectors read `ASTRA_SIEM_URL`, `ASTRA_FW_FEED`, and `ASTRA_WEBHOOK_URL`, each with an
+optional `<NAME>_TOKEN` companion for auth.
 | `ASPNETCORE_URLS` | `http://localhost:5170` | server bind address |
 
 ## Production build

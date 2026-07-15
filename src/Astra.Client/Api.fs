@@ -14,6 +14,31 @@ let private apiBase : string = jsNative
 
 let private url (path: string) = apiBase + path
 
+// --------------------------------------------------------------- session auth
+[<Emit("localStorage.getItem('astra_token')")>]
+let private lsGetToken () : string = jsNative
+[<Emit("localStorage.setItem('astra_token', $0)")>]
+let private lsSetToken (v: string) : unit = jsNative
+[<Emit("localStorage.removeItem('astra_token')")>]
+let private lsRemoveToken () : unit = jsNative
+
+let mutable private sessionToken : string option =
+    match lsGetToken () with
+    | null | "" -> None
+    | t -> Some t
+
+/// Persist (or clear) the session token used on every API call.
+let setToken (t: string option) =
+    sessionToken <- t
+    match t with Some v -> lsSetToken v | None -> lsRemoveToken ()
+
+let hasToken () = sessionToken.IsSome
+
+let private authHeaders () : HttpRequestHeaders list =
+    match sessionToken with
+    | Some t -> [ HttpRequestHeaders.Authorization ("Bearer " + t) ]
+    | None -> []
+
 // ------------------------------------------------------------------ decoders
 module private Decode =
     let mitreTactic : Decoder<MitreTacticCount> =
@@ -356,11 +381,37 @@ module private Decode =
               SimulationMode = get.Required.Field "simulationMode" Decode.bool
               Status = get.Required.Field "status" Decode.string })
 
+    let authUser : Decoder<AuthUser> =
+        Decode.object (fun get ->
+            { Username = get.Required.Field "username" Decode.string
+              DisplayName = get.Required.Field "displayName" Decode.string
+              Role = get.Required.Field "role" Decode.string
+              Permissions = get.Required.Field "permissions" (Decode.list Decode.string) })
+
+    let loginResult : Decoder<LoginResult> =
+        Decode.object (fun get ->
+            { Token = get.Required.Field "token" Decode.string
+              ExpiresAt = get.Required.Field "expiresAt" Decode.string
+              User = get.Required.Field "user" authUser })
+
+    let authEnabled : Decoder<bool> =
+        Decode.object (fun get -> get.Required.Field "authEnabled" Decode.bool)
+
+    let telemetryStatus : Decoder<TelemetryStatus> =
+        Decode.object (fun get ->
+            { Backend = get.Required.Field "backend" Decode.string
+              Endpoint = get.Required.Field "endpoint" Decode.string
+              Healthy = get.Required.Field "healthy" Decode.bool
+              Persisted = get.Required.Field "persisted" Decode.int64
+              Failed = get.Required.Field "failed" Decode.int64
+              LastError = get.Optional.Field "lastError" Decode.string
+              LastFlush = get.Optional.Field "lastFlush" Decode.string })
+
 // -------------------------------------------------------------------- fetch
 let private getJson<'T> (path: string) (decoder: Decoder<'T>) : JS.Promise<Result<'T, string>> =
     promise {
         try
-            let! response = fetch (url path) []
+            let! response = fetch (url path) [ requestHeaders (authHeaders ()) ]
             let! text = response.text ()
             if response.Ok then
                 return Decode.fromString decoder text
@@ -396,7 +447,7 @@ let private postJson<'T> (path: string) (body: string) (decoder: Decoder<'T>) : 
             let! response =
                 fetch (url path)
                     [ RequestProperties.Method HttpMethod.POST
-                      requestHeaders [ ContentType "application/json" ]
+                      requestHeaders (ContentType "application/json" :: authHeaders ())
                       RequestProperties.Body (unbox body) ]
             let! text = response.text ()
             if response.Ok then return Decode.fromString decoder text
@@ -459,3 +510,23 @@ let approveAction (id: string) (actor: string) =
 
 let rejectAction (id: string) (actor: string) =
     postJson (sprintf "/api/response/actions/%s/reject" id) (Encode.object [ "actor", Encode.string actor ] |> Encode.toString 0) Decode.responseAction
+
+// ------------------------------------------------------------ Phase 6: auth
+let getAuthEnabled () = getJson "/api/auth/status" Decode.authEnabled
+
+let login (username: string) (password: string) =
+    let body =
+        Encode.object [ "username", Encode.string username; "password", Encode.string password ]
+        |> Encode.toString 0
+    postJson "/api/auth/login" body Decode.loginResult
+
+let logout () =
+    postJson "/api/auth/logout" "{}" (Decode.succeed true)
+
+let getTelemetryStatus () = getJson "/api/telemetry/status" Decode.telemetryStatus
+
+let setConnectorMode (name: string) (simulationMode: bool) (actor: string) =
+    let body =
+        Encode.object [ "simulationMode", Encode.bool simulationMode; "actor", Encode.string actor ]
+        |> Encode.toString 0
+    postJson (sprintf "/api/response/connectors/%s/mode" name) body Decode.connector

@@ -156,7 +156,8 @@ module Mapping =
 /// are classified/entity-resolved and written to the store, and on a timer the
 /// detection -> scoring -> correlation cycle runs over the recent window.
 
-type IngestionPipeline(store: AstraStore, classifier: Classifier, config: Astra.Server.Config.ServerConfig, logger: ILogger) =
+type IngestionPipeline(store: AstraStore, classifier: Classifier, config: Astra.Server.Config.ServerConfig,
+                       sink: Astra.Server.Telemetry.ITelemetrySink, logger: ILogger) =
     let channel =
         Channel.CreateBounded<NormalizedEvent>(
             BoundedChannelOptions(100_000,
@@ -181,15 +182,19 @@ type IngestionPipeline(store: AstraStore, classifier: Classifier, config: Astra.
 
     member _.DroppedForBackpressure = Interlocked.Read(&droppedForBackpressure)
 
-    /// Drain the channel into the store (called by the background worker).
+    member _.TelemetryStatus = sink.Status
+
+    /// Drain the channel into the store (called by the background worker) and
+    /// stream the drained batch to the durable telemetry sink (best-effort).
     member _.DrainOnce(ct: CancellationToken) =
-        let mutable count = 0
+        let drained = ResizeArray<NormalizedEvent>()
         let mutable go = true
         while go && not ct.IsCancellationRequested do
             match channel.Reader.TryRead() with
-            | true, evt -> store.AddEvent evt; count <- count + 1
+            | true, evt -> store.AddEvent evt; drained.Add evt
             | _ -> go <- false
-        count
+        if drained.Count > 0 then sink.Persist (List.ofSeq drained)
+        drained.Count
 
     /// Run detection -> scoring -> correlation over the recent window.
     member _.RunAnalysisCycle() =

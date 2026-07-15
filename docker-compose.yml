@@ -76,6 +76,15 @@ services:
       ASTRA_SEED_DEMO: "true"
       ASTRA_CORS_ORIGINS: "http://localhost:8080"
       ASTRA_REDIS: "redis:6379"
+      # durable telemetry: events stream to ClickHouse alongside the hot store
+      ASTRA_CLICKHOUSE_URL: "http://clickhouse:8123"
+      ASTRA_CLICKHOUSE_DB: astra_telemetry
+      ASTRA_CLICKHOUSE_USER: astra
+      ASTRA_CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-astra_dev_password}
+      # authentication: enable RBAC for production (default off for the demo)
+      ASTRA_AUTH_ENABLED: ${ASTRA_AUTH_ENABLED:-false}
+      ASTRA_ADMIN_USER: ${ASTRA_ADMIN_USER:-admin}
+      ASTRA_ADMIN_PASSWORD: ${ASTRA_ADMIN_PASSWORD:-changeme-admin}
     ports:
       - "5170:5170"
 

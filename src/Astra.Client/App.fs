@@ -68,9 +68,32 @@ let private content (route: Route) =
     | ResponseCenter -> Pages.ResponseCenter.ResponseCenter ()
     | Admin -> Pages.Admin.Admin ()
 
+/// Gate: "checking" until /api/auth/status answers, "login" when the server
+/// enforces auth and we hold no token, "ready" otherwise.
+let private useAuthGate () =
+    let (gate, setGate) = React.useState "checking"
+    React.useEffectOnce(fun () ->
+        Api.getAuthEnabled ()
+        |> Promise.map (fun result ->
+            match result with
+            | Ok true when not (Api.hasToken ()) -> setGate "login"
+            | _ -> setGate "ready")   // auth off, token held, or status unreachable (dev)
+        |> Promise.start)
+    gate, setGate
+
 [<ReactComponent>]
 let App () =
     let route = useHashRoute ()
+    let gate, setGate = useAuthGate ()
+    match gate with
+    | "checking" ->
+        Html.div [
+            prop.style [ style.display.flex; style.alignItems.center; style.justifyContent.center
+                         style.minHeight (length.vh 100); style.backgroundColor Theme.bg; style.color Theme.textMuted ]
+            prop.text "Connecting to Astra NDR…"
+        ]
+    | "login" -> Pages.Login.Login (fun () -> setGate "ready")
+    | _ ->
     Html.div [
         prop.style [ style.display.flex; style.minHeight (length.vh 100); style.backgroundColor Theme.bg; style.color Theme.textPrimary; style.fontFamily "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" ]
         prop.children [
@@ -104,6 +127,20 @@ let App () =
                         ]
                         for item in navItems |> List.filter (fun n -> n.Group = group) do
                             navLink route item
+                    if Api.hasToken () then
+                        Html.button [
+                            prop.onClick (fun _ ->
+                                Api.logout () |> Promise.map ignore |> Promise.start
+                                Api.setToken None
+                                window.location.reload ())
+                            prop.style [
+                                style.marginTop 18; style.width (length.percent 100)
+                                style.padding (8, 12); style.backgroundColor "transparent"
+                                style.color Theme.textMuted; style.border (1, borderStyle.solid, Theme.border)
+                                style.borderRadius 8; style.fontSize 12; style.cursor.pointer
+                            ]
+                            prop.text "Sign out"
+                        ]
                 ]
             ]
             // ---- content ----

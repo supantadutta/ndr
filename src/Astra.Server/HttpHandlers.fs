@@ -382,7 +382,7 @@ let requestResponseActionHandler (store: AstraStore) : HttpHandler =
             with ex -> return! badRequest (sprintf "invalid response request: %s" ex.Message) next ctx
         }
 
-let approveActionHandler (store: AstraStore) (id: string) : HttpHandler =
+let approveActionHandler (store: AstraStore) (dispatcher: Astra.Server.Connectors.IConnectorDispatcher) (id: string) : HttpHandler =
     fun next ctx ->
         task {
             try
@@ -390,7 +390,7 @@ let approveActionHandler (store: AstraStore) (id: string) : HttpHandler =
                 let req = Astra.Server.Json.deserialize<ApproveActionRequest> body
                 match Guid.TryParse id with
                 | true, g ->
-                    match Astra.Server.Response.approve store g req.Actor with
+                    match Astra.Server.Response.approveWith (Some dispatcher) store g req.Actor with
                     | Ok a -> return! json (Astra.Server.Mappers.responseActionDto a) next ctx
                     | Error e -> return! badRequest e next ctx
                 | _ -> return! badRequest "invalid action id" next ctx
@@ -423,46 +423,201 @@ let incidentReportHandler (store: AstraStore) (id: string) : HttpHandler =
             | None -> (setStatusCode 404 >=> json { Error = "not_found"; Detail = "incident not found" }) next ctx
         | _ -> badRequest "invalid incident id" next ctx
 
+// -------------------------------------------------- auth + RBAC (Phase 6)
+/// Resolve the caller's identity from Authorization: Bearer <session-token>
+/// or X-Astra-Api-Key. With auth disabled this is a pass-through, preserving
+/// the open dev/demo behavior.
+let requireAuth (auth: Astra.Server.Auth.AuthService) (permission: string) : HttpHandler =
+    fun next ctx ->
+        if not auth.AuthEnabled then next ctx
+        else
+            let bearer =
+                match ctx.TryGetRequestHeader "Authorization" with
+                | Some h when h.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ->
+                    auth.ContextFromToken (h.Substring 7)
+                | _ -> None
+            let resolved =
+                match bearer with
+                | Some c -> Some c
+                | None ->
+                    match ctx.TryGetRequestHeader "X-Astra-Api-Key" with
+                    | Some k -> auth.ContextFromApiKey k
+                    | None -> None
+            match resolved with
+            | None ->
+                (setStatusCode 401 >=> json { Error = "unauthorized"; Detail = "missing or invalid credentials" }) next ctx
+            | Some c when not (Astra.Server.Auth.hasPermission permission c.Permissions) ->
+                (setStatusCode 403 >=> json { Error = "forbidden"; Detail = sprintf "requires permission '%s'" permission }) next ctx
+            | Some c ->
+                ctx.Items.["astra.auth"] <- c
+                next ctx
+
+let authStatusHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx -> json { AuthEnabled = auth.AuthEnabled } next ctx
+
+let private authUserDto (auth: Astra.Server.Auth.AuthService) (username: string) (roleName: string) : AuthUserDto =
+    { Username = username
+      DisplayName = username
+      Role = roleName
+      Permissions = auth.Roles |> List.tryFind (fun r -> r.Name = roleName) |> Option.map (fun r -> r.Permissions) |> Option.defaultValue [] }
+
+let loginHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<LoginRequest> body
+                match auth.Login(req.Username, req.Password) with
+                | Ok session ->
+                    let resp =
+                        { Token = session.Token
+                          ExpiresAt = session.ExpiresAt.ToString("o")
+                          User = { Username = session.Username; DisplayName = session.Username
+                                   Role = session.RoleName; Permissions = session.Permissions } }
+                    return! json resp next ctx
+                | Error _ ->
+                    // uniform error; do not reveal whether the user exists
+                    return! (setStatusCode 401 >=> json { Error = "unauthorized"; Detail = "invalid credentials" }) next ctx
+            with ex -> return! badRequest (sprintf "invalid login request: %s" ex.Message) next ctx
+        }
+
+let logoutHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        (match ctx.TryGetRequestHeader "Authorization" with
+         | Some h when h.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) -> auth.Logout (h.Substring 7)
+         | _ -> ())
+        json {| loggedOut = true |} next ctx
+
+let meHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        match ctx.Items.TryGetValue "astra.auth" with
+        | true, (:? Astra.Server.Auth.AuthContext as c) ->
+            json { Username = c.Subject; DisplayName = c.Subject; Role = c.RoleName; Permissions = c.Permissions } next ctx
+        | _ ->
+            // auth disabled: report the implicit dev identity
+            json { Username = "dev"; DisplayName = "Development"; Role = "admin"; Permissions = [ "*" ] } next ctx
+
+let usersHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        let items = auth.Users |> List.map (fun u -> authUserDto auth u.Username u.RoleName)
+        json items next ctx
+
+let createUserHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<CreateUserRequest> body
+                match auth.CreateUser(req.Username, req.Password, req.DisplayName, req.Role, req.Actor) with
+                | Ok u -> return! json (authUserDto auth u.Username u.RoleName) next ctx
+                | Error e -> return! badRequest e next ctx
+            with ex -> return! badRequest (sprintf "invalid user request: %s" ex.Message) next ctx
+        }
+
+let createApiKeyHandler (auth: Astra.Server.Auth.AuthService) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<CreateApiKeyRequest> body
+                match auth.CreateApiKey(req.Name, req.Role, None, req.Actor) with
+                | Ok (keyId, plaintext) ->
+                    // the plaintext key is returned exactly once and never stored
+                    return! json { KeyId = string keyId; ApiKey = plaintext; Name = req.Name; Role = req.Role } next ctx
+                | Error e -> return! badRequest e next ctx
+            with ex -> return! badRequest (sprintf "invalid api key request: %s" ex.Message) next ctx
+        }
+
+// ------------------------------------------------ telemetry status (Phase 6)
+let telemetryStatusHandler (pipeline: IngestionPipeline) : HttpHandler =
+    fun next ctx ->
+        let s = pipeline.TelemetryStatus
+        json { Backend = s.Backend; Endpoint = s.Endpoint; Healthy = s.Healthy
+               Persisted = s.Persisted; Failed = s.Failed; LastError = s.LastError
+               LastFlush = s.LastFlush |> Option.map (fun t -> t.ToString("o")) } next ctx
+
+// ------------------------------------------- connector live-mode (Phase 6)
+let setConnectorModeHandler (store: AstraStore) (name: string) : HttpHandler =
+    fun next ctx ->
+        task {
+            try
+                let! body = ctx.ReadBodyFromRequestAsync()
+                let req = Astra.Server.Json.deserialize<SetConnectorModeRequest> body
+                match store.Connectors |> List.tryFind (fun c -> c.ConnectorName = name) with
+                | None -> return! (setStatusCode 404 >=> json { Error = "not_found"; Detail = "connector not found" }) next ctx
+                | Some c ->
+                    let updated = { c with SimulationMode = req.SimulationMode }
+                    store.UpsertConnector updated
+                    store.Audit
+                        { At = DateTimeOffset.UtcNow; Actor = req.Actor; ActorKind = "user"
+                          Action = (if req.SimulationMode then "connector.simulation_mode" else "connector.live_mode")
+                          SubjectKind = "connector"; SubjectId = name; Details = Map.empty }
+                    return! json (Astra.Server.Mappers.connectorDto updated) next ctx
+            with ex -> return! badRequest (sprintf "invalid connector mode request: %s" ex.Message) next ctx
+        }
+
 // ------------------------------------------------------------------ routing
-let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Server.Assistant.IAnalysisProvider) (token: string) : HttpHandler =
+/// Route table with RBAC. Permission model:
+///   read:api          all read endpoints (analyst/readonly roles)
+///   triage:write      triage, rule tuning, filters, allowlists, intel writes
+///   respond:request   requesting a response action
+///   respond:approve   approving/rejecting an action (admin by default)
+///   admin:manage      user/api-key management, connector live-mode toggle
+/// Sensor ingestion keeps its own shared-token check. With auth disabled
+/// (dev/demo) every guard is a pass-through.
+let webApp (store: AstraStore) (pipeline: IngestionPipeline) (provider: Astra.Server.Assistant.IAnalysisProvider)
+           (auth: Astra.Server.Auth.AuthService) (dispatcher: Astra.Server.Connectors.IConnectorDispatcher)
+           (token: string) : HttpHandler =
+    let guard perm = requireAuth auth perm
     choose [
         GET >=> choose [
             route Routes.health >=> healthHandler
-            route Routes.dashboardSummary >=> dashboardHandler store
-            route Routes.entityQueue >=> entityQueueHandler store
-            routef "/api/assistant/entity/%s" (assistantEntityHandler store provider)
-            routef "/api/entities/%s" (entityDetailHandler store)
-            route Routes.detections >=> detectionsHandler store
-            routef "/api/detections/%s" (detectionDetailHandler store)
-            route Routes.incidents >=> incidentsHandler store
-            route Routes.sensorsHealth >=> sensorsHealthHandler store
-            route Routes.rules >=> rulesHandler store
-            route Routes.triageFilters >=> triageFiltersHandler store
-            route Routes.allowlists >=> allowlistsHandler store
-            route Routes.auditLog >=> auditHandler store
-            route Routes.huntTemplates >=> huntTemplatesHandler
-            routef "/api/graph/entity/%s" (graphEntityHandler store)
-            routef "/api/graph/incident/%s" (graphIncidentHandler store)
-            route Routes.tiIndicators >=> tiIndicatorsHandler store
-            route Routes.tiFeeds >=> tiFeedsHandler store
-            route Routes.tiMatches >=> tiMatchesHandler store
-            route Routes.responseActions >=> responseActionsHandler store
-            route Routes.responseConnectors >=> responseConnectorsHandler store
-            routef "/api/incidents/%s/report" (incidentReportHandler store)
+            route Routes.authStatus >=> authStatusHandler auth
+            route Routes.authMe >=> guard "read:api" >=> meHandler auth
+            route Routes.authUsers >=> guard "admin:manage" >=> usersHandler auth
+            route Routes.telemetryStatus >=> guard "read:api" >=> telemetryStatusHandler pipeline
+            guard "read:api" >=> choose [
+                route Routes.dashboardSummary >=> dashboardHandler store
+                route Routes.entityQueue >=> entityQueueHandler store
+                routef "/api/assistant/entity/%s" (assistantEntityHandler store provider)
+                routef "/api/entities/%s" (entityDetailHandler store)
+                route Routes.detections >=> detectionsHandler store
+                routef "/api/detections/%s" (detectionDetailHandler store)
+                route Routes.incidents >=> incidentsHandler store
+                route Routes.sensorsHealth >=> sensorsHealthHandler store
+                route Routes.rules >=> rulesHandler store
+                route Routes.triageFilters >=> triageFiltersHandler store
+                route Routes.allowlists >=> allowlistsHandler store
+                route Routes.auditLog >=> auditHandler store
+                route Routes.huntTemplates >=> huntTemplatesHandler
+                routef "/api/graph/entity/%s" (graphEntityHandler store)
+                routef "/api/graph/incident/%s" (graphIncidentHandler store)
+                route Routes.tiIndicators >=> tiIndicatorsHandler store
+                route Routes.tiFeeds >=> tiFeedsHandler store
+                route Routes.tiMatches >=> tiMatchesHandler store
+                route Routes.responseActions >=> responseActionsHandler store
+                route Routes.responseConnectors >=> responseConnectorsHandler store
+                routef "/api/incidents/%s/report" (incidentReportHandler store)
+            ]
         ]
         POST >=> choose [
+            route Routes.authLogin >=> loginHandler auth
+            route Routes.authLogout >=> logoutHandler auth
             route Routes.ingestEvents >=> ingestEventsHandler pipeline token
             route Routes.ingestHeartbeat >=> heartbeatHandler store token
-            routef "/api/detections/%s/triage" (triageDetectionHandler store)
-            routef "/api/rules/%s" (updateRuleHandler store)
-            route Routes.triageFilters >=> createTriageFilterHandler store
-            route Routes.allowlists >=> createAllowlistHandler store
-            route Routes.huntSearch >=> huntSearchHandler store
-            route Routes.tiIndicators >=> tiCreateIndicatorHandler store
-            route Routes.tiImport >=> tiImportHandler store
-            route Routes.responseActions >=> requestResponseActionHandler store
-            routef "/api/response/actions/%s/approve" (approveActionHandler store)
-            routef "/api/response/actions/%s/reject" (rejectActionHandler store)
+            route Routes.authUsers >=> guard "admin:manage" >=> createUserHandler auth
+            route Routes.authApiKeys >=> guard "admin:manage" >=> createApiKeyHandler auth
+            routef "/api/response/connectors/%s/mode" (fun name -> guard "admin:manage" >=> setConnectorModeHandler store name)
+            route Routes.huntSearch >=> guard "read:api" >=> huntSearchHandler store
+            routef "/api/detections/%s/triage" (fun id -> guard "triage:write" >=> triageDetectionHandler store id)
+            routef "/api/rules/%s" (fun id -> guard "triage:write" >=> updateRuleHandler store id)
+            route Routes.triageFilters >=> guard "triage:write" >=> createTriageFilterHandler store
+            route Routes.allowlists >=> guard "triage:write" >=> createAllowlistHandler store
+            route Routes.tiIndicators >=> guard "triage:write" >=> tiCreateIndicatorHandler store
+            route Routes.tiImport >=> guard "triage:write" >=> tiImportHandler store
+            route Routes.responseActions >=> guard "respond:request" >=> requestResponseActionHandler store
+            routef "/api/response/actions/%s/approve" (fun id -> guard "respond:approve" >=> approveActionHandler store dispatcher id)
+            routef "/api/response/actions/%s/reject" (fun id -> guard "respond:approve" >=> rejectActionHandler store id)
         ]
         setStatusCode 404 >=> json { Error = "not_found"; Detail = "no such route" }
     ]

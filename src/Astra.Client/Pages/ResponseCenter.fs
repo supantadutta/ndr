@@ -160,7 +160,15 @@ let ResponseCenter () =
                                             Html.div [ prop.style [ style.display.flex; style.alignItems.center; style.gap 8; style.marginTop 4 ]
                                                        prop.children [
                                                            Html.span [ prop.style [ style.fontSize 11; style.color Theme.textMuted ]; prop.text c.Kind ]
-                                                           (if c.SimulationMode then badge "simulation" "#ffd166" else badge "enforcing" "#3ddc97") ] ]
+                                                           (if c.SimulationMode then badge "simulation" "#ffd166" else badge "live" "#ff4d6d") ] ]
+                                            Html.div [ prop.style [ style.marginTop 8 ]
+                                                       prop.children [
+                                                           actionButton
+                                                               (if c.SimulationMode then "Enable live delivery" else "Return to simulation")
+                                                               (if c.SimulationMode then "#ff8c42" else "#3ddc97")
+                                                               (fun () ->
+                                                                   Api.setConnectorMode c.Name (not c.SimulationMode) "analyst"
+                                                                   |> Promise.map (fun _ -> refreshAll ()) |> Promise.start) ] ]
                                         ]
                                     ]
                             ]
