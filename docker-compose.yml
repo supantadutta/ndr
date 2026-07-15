@@ -1,0 +1,109 @@
+# ============================================================================
+# Astra NDR - development / demo stack (Docker Compose first, K8s-ready later)
+#
+#   postgres    relational state (entities, detections, incidents, config)
+#   redis       cache / queues (used from Phase 2)
+#   clickhouse  high-volume telemetry tier (used from Phase 2)
+#   server      F# central brain (Giraffe API + ingestion + detection engine)
+#   client      Fable 5 analyst console served by nginx
+#
+# Bring up the core stack:   docker compose up --build
+# Console:                   http://localhost:8080
+# API:                       http://localhost:5170
+# ============================================================================
+name: astra-ndr
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: astra
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-astra_dev_password}
+      POSTGRES_DB: astra
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astra"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    environment:
+      CLICKHOUSE_USER: astra
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-astra_dev_password}
+      CLICKHOUSE_DB: astra_telemetry
+    ports:
+      - "8123:8123"   # HTTP interface
+      - "9000:9000"   # native protocol
+    volumes:
+      - chdata:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+
+  server:
+    build:
+      context: .
+      dockerfile: deploy/server.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_URLS: http://0.0.0.0:5170
+      ASTRA_POSTGRES: "Host=postgres;Port=5432;Database=astra;Username=astra;Password=${POSTGRES_PASSWORD:-astra_dev_password}"
+      ASTRA_MIGRATIONS_PATH: /app/migrations
+      ASTRA_SENSOR_TOKEN: ${ASTRA_SENSOR_TOKEN:-dev-sensor-token-change-me}
+      ASTRA_SEED_DEMO: "true"
+      ASTRA_CORS_ORIGINS: "http://localhost:8080"
+      ASTRA_REDIS: "redis:6379"
+    ports:
+      - "5170:5170"
+
+  client:
+    build:
+      context: .
+      dockerfile: deploy/client.Dockerfile
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+
+  # Optional real sensor: replays the sample Zeek/Suricata logs through the
+  # ingest API. Enable with:  docker compose --profile lab up --build
+  # For a production sensor, run astra-sensor in `live` mode against a bind-mount
+  # of your Zeek log dir + Suricata eve.json instead.
+  sensor:
+    build:
+      context: .
+      dockerfile: deploy/sensor.Dockerfile
+    profiles: ["lab"]
+    depends_on:
+      - server
+    volumes:
+      - ./lab/samples:/logs:ro
+    command: ["replay", "--log-dir", "/logs", "--api", "http://server:5170", "--token", "${ASTRA_SENSOR_TOKEN:-dev-sensor-token-change-me}", "--name", "sensor-lab-01"]
+
+volumes:
+  pgdata:
+  redisdata:
+  chdata:

@@ -1,0 +1,46 @@
+#separator \x09
+#set_separator	,
+#empty_field	(empty)
+#unset_field	-
+#path	ssl
+#fields	ts	uid	id.orig_h	id.orig_p	id.resp_h	id.resp_p	proto	version	cipher	server_name	subject	issuer	ja3	ja3s
+1783628656.124669	Cbf493d79a272473	10.50.9.15	54198	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628685.126162	C5853239f1d284f8	10.50.9.15	52679	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628716.065151	Cd60adfa44cfa418	10.50.9.15	49898	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628744.991817	C4532156cc7a5407	10.50.9.15	58221	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628775.158629	Cc1c2428cab644a2	10.50.9.15	41857	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628806.087198	C7a53686c1790426	10.50.9.15	49520	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628834.677562	C8aafe2856f53410	10.50.9.15	36465	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628865.302903	Cb4d844565ec14b0	10.50.9.15	35240	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628895.014147	Cf316009eb672446	10.50.9.15	32121	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628925.818624	C4922316332754b1	10.50.9.15	45784	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628955.624721	C8ba8ca61191e4d5	10.50.9.15	40674	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783628984.840917	C412ff9d764ac45e	10.50.9.15	43977	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629016.286481	Cb9ef7cedf32e412	10.50.9.15	32364	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629045.049314	Cd0ebc5cb4f00459	10.50.9.15	32755	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629074.936214	C40c459da385645f	10.50.9.15	43797	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629105.516483	C3c68c8e02dc2433	10.50.9.15	53257	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629136.463765	C0bbd630c71fb4d0	10.50.9.15	35675	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629164.987925	C03d6592efa9742b	10.50.9.15	43659	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629195.441380	Cf3de00e0230547e	10.50.9.15	59204	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629225.867749	C59d08451f29a4d8	10.50.9.15	54509	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629255.596661	C5aa1fcc51e864e0	10.50.9.15	55358	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629285.848382	Cdfead9455d7c4f3	10.50.9.15	33970	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629316.079033	Cd5178d073961499	10.50.9.15	39631	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629345.107096	C1dcc709a4dfe456	10.50.9.15	48575	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629375.054864	C0d2c11cd3d3a452	10.50.9.15	38324	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629405.995667	C3fa786ca8b80450	10.50.9.15	36527	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629435.398328	C066bb463873f4e6	10.50.9.15	36086	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629465.010213	Cf0e507f881a74de	10.50.9.15	35024	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629495.082240	Cfb8594167e6b431	10.50.9.15	59739	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629525.676094	C02a97e3ad91341f	10.50.9.15	40693	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629554.649140	C4b4eae071e61464	10.50.9.15	38246	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629586.504429	C309991a7cf944a8	10.50.9.15	46624	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629615.572150	Cad287580009b4cf	10.50.9.15	51287	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629646.136418	C47f0f8970aac484	10.50.9.15	51408	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629675.447363	C6a149c90d0ab4d8	10.50.9.15	31213	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629704.724197	Cb3b94483e1f24bf	10.50.9.15	45557	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629736.285182	C551b10f4dab546f	10.50.9.15	37573	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629766.200645	C2da9a6cd065f465	10.50.9.15	59962	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629795.267285	C635d75c18450443	10.50.9.15	58733	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123
+1783629825.106887	C1fabfb0f5343489	10.50.9.15	33906	203.0.113.66	443	tcp	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	cdn-metrics.example-c2.net	CN=cdn-metrics.example-c2.net	CN=Lets Encrypt	6f1c2d3e4a5b6c7d	abc123

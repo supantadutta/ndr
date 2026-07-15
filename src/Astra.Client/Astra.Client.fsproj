@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Astra.Client</RootNamespace>
+    <!-- Fable compiles F# -> JS; this project is not run by the .NET host. -->
+    <DisableImplicitFSharpCoreReference>false</DisableImplicitFSharpCoreReference>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="Api.fs" />
+    <Compile Include="Theme.fs" />
+    <Compile Include="Charts.fs" />
+    <Compile Include="Components.fs" />
+    <Compile Include="Pages/Dashboard.fs" />
+    <Compile Include="Pages/EntityQueue.fs" />
+    <Compile Include="Pages/EntityDetail.fs" />
+    <Compile Include="Pages/Detections.fs" />
+    <Compile Include="Pages/Incidents.fs" />
+    <Compile Include="Pages/Sensors.fs" />
+    <Compile Include="Pages/DetectionEngineering.fs" />
+    <Compile Include="Pages/AttackGraph.fs" />
+    <Compile Include="Pages/Hunting.fs" />
+    <Compile Include="Pages/ThreatIntel.fs" />
+    <Compile Include="Pages/ResponseCenter.fs" />
+    <Compile Include="Pages/Admin.fs" />
+    <Compile Include="Pages/Placeholder.fs" />
+    <Compile Include="App.fs" />
+    <Compile Include="Main.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Astra.Shared\Astra.Shared.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="5.0.0" />
+    <PackageReference Include="Feliz" Version="3.3.3" />
+    <PackageReference Include="Fable.Fetch" Version="2.7.0" />
+    <PackageReference Include="Thoth.Json" Version="10.5.1" />
+    <PackageReference Include="Fable.Promise" Version="3.2.0" />
+  </ItemGroup>
+</Project>

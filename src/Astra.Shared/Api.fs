@@ -1,0 +1,518 @@
+namespace Astra.Shared.Api
+
+/// ============================================================================
+/// Wire-level DTOs shared by the Fable client and the Giraffe backend.
+///
+/// DESIGN RULE: DTOs use only primitives, lists and records — no DUs, no
+/// DateTimeOffset. Dates travel as ISO-8601 strings, enums as their canonical
+/// string labels. This keeps System.Text.Json (server) and Thoth.Json (client)
+/// perfectly interoperable with zero custom converters.
+/// ============================================================================
+
+type ApiError =
+    { Error: string
+      Detail: string }
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+type MitreTacticCountDto =
+    { Tactic: string
+      Count: int }
+
+type DetectionTrendPointDto =
+    { BucketStart: string     // ISO-8601
+      Count: int
+      CriticalCount: int }
+
+type DashboardSummaryDto =
+    { ActiveIncidents: int
+      OpenDetections: int
+      CriticalDetections: int
+      PrioritizedEntities: int
+      SensorsOnline: int
+      SensorsTotal: int
+      EventsLast24h: int64
+      MeanTimeToTriageMinutes: float
+      TacticDistribution: MitreTacticCountDto list
+      DetectionTrend: DetectionTrendPointDto list }
+
+// ---------------------------------------------------------------------------
+// Entities
+// ---------------------------------------------------------------------------
+
+type EntityQueueItemDto =
+    { EntityId: string
+      EntityType: string
+      DisplayName: string
+      Urgency: int
+      Risk: int
+      Threat: int
+      Certainty: int
+      DetectionCount: int
+      IncidentCount: int
+      LastSeen: string
+      Criticality: string
+      GroupImportance: float
+      TriageState: string
+      Owner: string option }
+
+type EntityQueuePageDto =
+    { Items: EntityQueueItemDto list
+      Total: int
+      Page: int
+      PageSize: int }
+
+type ScoreFactorDto =
+    { Kind: string
+      Label: string
+      Contribution: float
+      Explanation: string }
+
+type EntityDetailDto =
+    { EntityId: string
+      EntityType: string
+      DisplayName: string
+      CanonicalName: string
+      Aliases: string list
+      FirstSeen: string
+      LastSeen: string
+      Criticality: string
+      Tags: string list
+      Groups: string list
+      Urgency: int
+      Risk: int
+      Threat: int
+      Certainty: int
+      ScoreFactors: ScoreFactorDto list
+      RecentDetectionIds: string list
+      TriageState: string }
+
+// ---------------------------------------------------------------------------
+// Detections
+// ---------------------------------------------------------------------------
+
+type EvidenceItemDto =
+    { Label: string
+      Value: string }
+
+type DetectionListItemDto =
+    { DetectionId: string
+      Title: string
+      Category: string
+      Tactic: string
+      TechniqueId: string
+      TechniqueName: string
+      Severity: string
+      Confidence: int
+      Certainty: int
+      ThreatScore: int
+      AffectedEntityId: string
+      AffectedEntityName: string
+      TriageState: string
+      Status: string
+      CreatedAt: string }
+
+type DetectionDetailDto =
+    { DetectionId: string
+      RuleId: string
+      EngineKind: string
+      Title: string
+      Summary: string
+      Description: string
+      Category: string
+      Tactic: string
+      TechniqueId: string
+      TechniqueName: string
+      KillChainStage: string
+      Severity: string
+      Confidence: int
+      Certainty: int
+      ThreatScore: int
+      AffectedEntityId: string
+      AffectedEntityName: string
+      Evidence: EvidenceItemDto list
+      EventIds: string list
+      TimelineStart: string
+      TimelineEnd: string
+      WhySuspicious: string
+      FalsePositiveConsiderations: string list
+      RecommendedInvestigationSteps: string list
+      RecommendedResponseActions: string list
+      TriageState: string
+      Status: string
+      CreatedAt: string }
+
+type DetectionPageDto =
+    { Items: DetectionListItemDto list
+      Total: int
+      Page: int
+      PageSize: int }
+
+// ---------------------------------------------------------------------------
+// Sensors
+// ---------------------------------------------------------------------------
+
+type SensorHealthDto =
+    { SensorId: string
+      Name: string
+      Zone: string
+      Status: string
+      Version: string
+      Mode: string
+      LastHeartbeat: string option
+      CpuPercent: float
+      MemoryPercent: float
+      DiskPercent: float
+      PacketDropPercent: float
+      EventsPerSecond: float
+      InterfaceUp: bool
+      ZeekRunning: bool
+      SuricataRunning: bool
+      Errors: string list }
+
+// ---------------------------------------------------------------------------
+// Incidents
+// ---------------------------------------------------------------------------
+
+type IncidentListItemDto =
+    { IncidentId: string
+      Title: string
+      Severity: string
+      Urgency: int
+      AttackProfile: string
+      Status: string
+      PrimaryEntityName: string
+      AffectedEntityCount: int
+      DetectionCount: int
+      CreatedAt: string }
+
+// ---------------------------------------------------------------------------
+// Ingestion (sensor -> central)
+// ---------------------------------------------------------------------------
+
+type IngestEventDto =
+    { Timestamp: string
+      ObservedTime: string
+      Category: string
+      Protocol: string
+      ApplicationProtocol: string
+      SourceIp: string
+      DestinationIp: string
+      SourcePort: int option
+      DestinationPort: int option
+      Hostname: string option
+      Username: string option
+      BytesIn: int64
+      BytesOut: int64
+      PacketsIn: int64
+      PacketsOut: int64
+      DurationMs: int64 option
+      Fields: Map<string, string> }   // protocol-specific fields, normalized server-side
+
+type IngestBatchRequest =
+    { SensorId: string
+      SensorName: string
+      Events: IngestEventDto list }
+
+type IngestBatchResponse =
+    { Accepted: int
+      Rejected: int
+      Errors: string list }
+
+type HeartbeatRequest =
+    { SensorId: string
+      SensorName: string
+      Version: string
+      CpuPercent: float
+      MemoryPercent: float
+      DiskPercent: float
+      InterfaceUp: bool
+      PacketDropPercent: float
+      EventsPerSecond: float
+      BufferedEvents: int64
+      ZeekRunning: bool
+      SuricataRunning: bool
+      Errors: string list }
+
+type HeartbeatResponse =
+    { Acknowledged: bool
+      ConfigVersion: int }
+
+// ---------------------------------------------------------------------------
+// AI SOC investigation assistant (read-only, evidence-bound)
+// ---------------------------------------------------------------------------
+
+/// A single evidence-bound statement with its citations (detection/event ids).
+type AssistantStatementDto =
+    { Text: string
+      Citations: string list }
+
+/// Investigation summary for an entity. Fact / inference / recommendation are
+/// deliberately separated (see docs/ai-assistant-security.md). `Provider`
+/// names what produced it ("deterministic" or a configured model).
+type AssistantSummaryDto =
+    { SubjectId: string
+      SubjectName: string
+      Headline: string
+      Facts: AssistantStatementDto list
+      Inferences: AssistantStatementDto list
+      Recommendations: AssistantStatementDto list
+      MitreTechniques: string list
+      Confidence: int
+      Uncertainty: string
+      Provider: string
+      GeneratedAt: string }
+
+// ---------------------------------------------------------------------------
+// Detection engineering (rule tuning)
+// ---------------------------------------------------------------------------
+
+type RuleThresholdDto = { Key: string; Value: float }
+
+type DetectionRuleDto =
+    { RuleId: string
+      Name: string
+      Description: string
+      EngineKind: string
+      Category: string
+      Tactic: string
+      TechniqueId: string
+      TechniqueName: string
+      DefaultSeverity: string
+      DefaultConfidence: int
+      Enabled: bool
+      Thresholds: RuleThresholdDto list
+      Version: int
+      /// live count of open detections produced by this rule
+      OpenDetections: int }
+
+type RuleUpdateRequest =
+    { Enabled: bool option
+      Thresholds: RuleThresholdDto list }
+
+// ---------------------------------------------------------------------------
+// Triage actions + governance
+// ---------------------------------------------------------------------------
+
+/// A triage action against a detection. `Actor` identifies the analyst.
+type TriageRequest =
+    { Action: string            // close_benign | close_remediated | expected | escalate | reopen | assign | in_progress
+      Owner: string option
+      Note: string option
+      Actor: string }
+
+type TriageFilterDto =
+    { FilterId: string
+      Name: string
+      Description: string
+      Conditions: RuleThresholdDto list   // reused shape: Key=field, Value unused
+      ConditionPairs: (string * string) list
+      Action: string
+      CreatedBy: string
+      CreatedAt: string
+      Enabled: bool }
+
+type CreateTriageFilterRequest =
+    { Name: string
+      Description: string
+      Conditions: (string * string) list
+      Action: string             // suppress_scoring | hide | tag
+      Actor: string }
+
+type AllowlistDto =
+    { AllowlistId: string
+      Name: string
+      Kind: string
+      Value: string
+      Reason: string
+      CreatedBy: string
+      CreatedAt: string
+      Enabled: bool }
+
+type CreateAllowlistRequest =
+    { Name: string; Kind: string; Value: string; Reason: string; Actor: string }
+
+type AuditEntryDto =
+    { At: string
+      Actor: string
+      ActorKind: string
+      Action: string
+      SubjectKind: string
+      SubjectId: string }
+
+// ---------------------------------------------------------------------------
+// Investigation graph (Phase 4)
+// ---------------------------------------------------------------------------
+
+type GraphNodeDto =
+    { NodeId: string
+      Kind: string
+      Label: string
+      EntityId: string option
+      Risk: int
+      Tags: string list }
+
+type GraphEdgeDto =
+    { EdgeId: string
+      FromNode: string
+      ToNode: string
+      Kind: string
+      Label: string
+      Weight: float }
+
+type InvestigationGraphDto =
+    { Nodes: GraphNodeDto list
+      Edges: GraphEdgeDto list }
+
+// ---------------------------------------------------------------------------
+// Threat hunting (Phase 4)
+// ---------------------------------------------------------------------------
+
+type HuntPredicateDto = { Field: string; Op: string; Value: string }
+
+type HuntQueryDto =
+    { Predicates: HuntPredicateDto list
+      WindowMinutes: int
+      Limit: int }
+
+type HuntRowDto =
+    { Timestamp: string
+      Category: string
+      Protocol: string
+      App: string
+      SourceIp: string
+      DestinationIp: string
+      DestinationPort: int option
+      BytesOut: int64
+      BytesIn: int64
+      Detail: string }
+
+type HuntBucketDto = { Key: string; Count: int; Bytes: int64 }
+
+type HuntResultDto =
+    { Total: int
+      Rows: HuntRowDto list
+      TopDestinations: HuntBucketDto list
+      TopSources: HuntBucketDto list }
+
+type HuntTemplateDto =
+    { Id: string
+      Name: string
+      Description: string
+      Query: HuntQueryDto }
+
+// ---------------------------------------------------------------------------
+// Threat intelligence (Phase 5)
+// ---------------------------------------------------------------------------
+
+type ThreatIndicatorDto =
+    { IndicatorId: string
+      Indicator: string
+      IndicatorType: string
+      FeedName: string
+      Actor: string option
+      Tool: string option
+      Campaign: string option
+      Confidence: int
+      FirstSeen: string
+      LastSeen: string
+      Enabled: bool }
+
+type ThreatFeedDto =
+    { Name: string
+      Kind: string
+      IndicatorCount: int
+      LastUpdate: string option
+      Status: string }
+
+type ThreatMatchDto =
+    { Indicator: string
+      IndicatorType: string
+      FeedName: string
+      Actor: string option
+      MatchedValue: string
+      MatchedAt: string
+      DetectionId: string option }
+
+type CreateIndicatorRequest =
+    { Indicator: string
+      IndicatorType: string      // ip | domain | url | hash
+      FeedName: string
+      Confidence: int
+      Actor: string option
+      CreatedBy: string }
+
+type ImportIndicatorsRequest = { FeedName: string; Csv: string; Actor: string }
+type ImportResultDto = { Imported: int }
+
+// ---------------------------------------------------------------------------
+// Response center (Phase 5)
+// ---------------------------------------------------------------------------
+
+type ResponseActionDto =
+    { ActionId: string
+      Kind: string
+      Reason: string
+      Target: string
+      Status: string
+      RequestedBy: string
+      ApprovedBy: string option
+      ConnectorName: string option
+      Simulation: bool
+      Result: string option
+      AffectedEntityCount: int
+      CreatedAt: string }
+
+type ResponseConnectorDto =
+    { Name: string
+      Kind: string
+      ConfigRef: string
+      SimulationMode: bool
+      Status: string }
+
+type RequestResponseActionRequest =
+    { Kind: string               // block_ip | block_domain | isolate_host_sim | export_siem | ...
+      Target: string
+      Reason: string
+      Evidence: string list
+      Actor: string }
+
+type ApproveActionRequest = { Actor: string }
+
+// ---------------------------------------------------------------------------
+// Route table (single source of truth for URLs)
+// ---------------------------------------------------------------------------
+
+module Routes =
+    let health = "/api/health"
+    let dashboardSummary = "/api/dashboard/summary"
+    let entityQueue = "/api/entities/queue"
+    let entityDetail (id: string) = sprintf "/api/entities/%s" id
+    let detections = "/api/detections"
+    let detectionDetail (id: string) = sprintf "/api/detections/%s" id
+    let incidents = "/api/incidents"
+    let sensorsHealth = "/api/sensors/health"
+    let ingestEvents = "/api/ingest/events"
+    let ingestHeartbeat = "/api/ingest/heartbeat"
+    let assistantEntity (id: string) = sprintf "/api/assistant/entity/%s" id
+    let rules = "/api/rules"
+    let rule (id: string) = sprintf "/api/rules/%s" id
+    let triageDetection (id: string) = sprintf "/api/detections/%s/triage" id
+    let triageFilters = "/api/triage-filters"
+    let allowlists = "/api/allowlists"
+    let auditLog = "/api/audit"
+    let graphEntity (id: string) = sprintf "/api/graph/entity/%s" id
+    let graphIncident (id: string) = sprintf "/api/graph/incident/%s" id
+    let huntSearch = "/api/hunt/search"
+    let huntTemplates = "/api/hunt/templates"
+    let tiIndicators = "/api/threat-intel/indicators"
+    let tiFeeds = "/api/threat-intel/feeds"
+    let tiMatches = "/api/threat-intel/matches"
+    let tiImport = "/api/threat-intel/import"
+    let responseActions = "/api/response/actions"
+    let responseConnectors = "/api/response/connectors"
+    let responseApprove (id: string) = sprintf "/api/response/actions/%s/approve" id
+    let responseReject (id: string) = sprintf "/api/response/actions/%s/reject" id
+    let incidentReport (id: string) = sprintf "/api/incidents/%s/report" id
